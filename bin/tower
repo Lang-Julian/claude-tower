@@ -1,0 +1,608 @@
+#!/usr/bin/env node
+// claude-tower CLI — daemon control + remote ops for the local dashboard.
+//
+// All commands work even when the server is down, except those that need live
+// data (sessions, approve, deny, mobile). See README / docs/ARCHITECTURE.md.
+
+import { promises as fs, existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawn, spawnSync } from "node:child_process";
+import http from "node:http";
+import os from "node:os";
+
+import {
+  TOWER_DIR,
+  PID_FILE,
+  LOG_FILE,
+  ensureTowerDir,
+} from "../lib/paths.js";
+import { c, table, humanAge, statusLabel, truncate, box } from "../lib/cli/output.js";
+import { renderQr, getOrCreateToken } from "../lib/qr.js";
+import { VERSION } from "../lib/config.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, "..");
+const SERVER_JS = path.join(PROJECT_ROOT, "server.js");
+const PORT_FILE = path.join(TOWER_DIR, "port");
+const LAST_ARGS_FILE = path.join(TOWER_DIR, "last-args.json");
+const DEFAULT_PORT = 7777;
+
+// --- entry ---------------------------------------------------------------
+
+const argv = process.argv.slice(2);
+const cmd = argv[0];
+
+const COMMANDS = {
+  start: cmdStart,
+  stop: cmdStop,
+  restart: cmdRestart,
+  status: cmdStatus,
+  sessions: cmdSessions,
+  approve: cmdApprove,
+  deny: cmdDeny,
+  "install-hooks": cmdInstallHooks,
+  "uninstall-hooks": cmdUninstallHooks,
+  logs: cmdLogs,
+  mobile: cmdMobile,
+  db: cmdDb,
+};
+
+main().catch((err) => {
+  console.error(c.red("error: ") + (err?.message || err));
+  process.exit(2);
+});
+
+async function main() {
+  if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
+    return printHelp();
+  }
+  if (cmd === "-v" || cmd === "--version" || cmd === "version") {
+    console.log(VERSION);
+    return;
+  }
+  const handler = COMMANDS[cmd];
+  if (!handler) {
+    console.error(c.red(`unknown command: ${cmd}`));
+    console.error(`run ${c.bold("tower --help")} for usage.`);
+    process.exit(1);
+  }
+  await handler(argv.slice(1));
+}
+
+// --- help ----------------------------------------------------------------
+
+function printHelp() {
+  const lines = [
+    c.bold(`claude-tower v${VERSION}`) + c.dim("  — air-traffic control for your Claude Code swarm"),
+    "",
+    c.bold("USAGE"),
+    "  tower <command> [options]",
+    "",
+    c.bold("DAEMON"),
+    "  start [--port N] [--mobile] [--open] [--no-telegram]   start dashboard",
+    "  stop                                                   stop dashboard",
+    "  restart                                                restart (keeps flags)",
+    "  status                                                 show state + counts",
+    "",
+    c.bold("SESSIONS"),
+    "  sessions [--all] [--json]      list claude sessions",
+    "  approve <id|--all-pending>     approve a pending permission",
+    "  deny <id> [reason]             deny a pending permission",
+    "",
+    c.bold("HOOKS"),
+    "  install-hooks                  register Claude Code hooks",
+    "  uninstall-hooks                remove Claude Code hooks",
+    "",
+    c.bold("UTIL"),
+    "  logs [--follow|-f] [--lines N] tail server log (default 50 lines)",
+    "  mobile                         show QR + URL + token for LAN access",
+    "  db                             open SQLite shell on tower.sqlite",
+    "  --version, -v                  print version",
+    "  --help, -h                     show this help",
+    "",
+    c.dim("Dashboard:  http://localhost:7777    Docs:  docs/ARCHITECTURE.md"),
+  ];
+  console.log(lines.join("\n"));
+}
+
+// --- args helpers --------------------------------------------------------
+
+function flag(args, name) { return args.includes(name); }
+function optValue(args, name, fallback = null) {
+  const i = args.indexOf(name);
+  if (i < 0) return fallback;
+  return args[i + 1] ?? fallback;
+}
+function positional(args) {
+  return args.filter((a, i) => {
+    if (a.startsWith("-")) return false;
+    const prev = args[i - 1];
+    if (prev && prev.startsWith("--") && !prev.startsWith("--no-") && !["--mobile", "--open", "--all", "--json", "--follow", "--all-pending", "-f"].includes(prev)) {
+      return false; // consumed as an option value
+    }
+    return true;
+  });
+}
+
+// --- pid / port helpers --------------------------------------------------
+
+function readPid() {
+  try {
+    const raw = readFileSync(PID_FILE, "utf8").trim();
+    const pid = Number(raw);
+    return Number.isFinite(pid) && pid > 0 ? pid : null;
+  } catch { return null; }
+}
+
+function readPort() {
+  try {
+    const raw = readFileSync(PORT_FILE, "utf8").trim();
+    const port = Number(raw);
+    return Number.isFinite(port) && port > 0 ? port : null;
+  } catch { return null; }
+}
+
+function isAlive(pid) {
+  if (!pid) return false;
+  try { process.kill(pid, 0); return true; }
+  catch { return false; }
+}
+
+function isRunning() {
+  const pid = readPid();
+  return isAlive(pid) ? pid : null;
+}
+
+function uptimeMs(pid) {
+  // ps -o lstart on macOS returns a date; etime in seconds-or-formatted on both.
+  try {
+    const out = spawnSync("ps", ["-o", "etime=", "-p", String(pid)], { encoding: "utf8" });
+    if (out.status !== 0) return null;
+    return parseEtime(out.stdout.trim());
+  } catch { return null; }
+}
+
+function parseEtime(s) {
+  // formats: [[dd-]hh:]mm:ss
+  if (!s) return null;
+  let days = 0;
+  if (s.includes("-")) {
+    const [d, rest] = s.split("-");
+    days = Number(d);
+    s = rest;
+  }
+  const parts = s.split(":").map(Number);
+  let h = 0, m = 0, sec = 0;
+  if (parts.length === 3) [h, m, sec] = parts;
+  else if (parts.length === 2) [m, sec] = parts;
+  else sec = parts[0] || 0;
+  return ((days * 24 + h) * 3600 + m * 60 + sec) * 1000;
+}
+
+// --- HTTP helper ---------------------------------------------------------
+
+async function httpRequest(port, method, urlPath, body = null) {
+  return new Promise((resolve, reject) => {
+    const data = body ? JSON.stringify(body) : null;
+    const req = http.request({
+      hostname: "127.0.0.1",
+      port,
+      method,
+      path: urlPath,
+      headers: {
+        "Accept": "application/json",
+        ...(data ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } : {}),
+      },
+    }, (res) => {
+      let buf = "";
+      res.on("data", (c) => buf += c);
+      res.on("end", () => {
+        const ct = res.headers["content-type"] || "";
+        let parsed = buf;
+        if (ct.includes("application/json")) {
+          try { parsed = JSON.parse(buf); } catch { /* leave as string */ }
+        }
+        resolve({ status: res.statusCode, body: parsed });
+      });
+    });
+    req.on("error", reject);
+    if (data) req.write(data);
+    req.end();
+  });
+}
+
+function requireServer(port) {
+  if (!port) {
+    console.error(c.red("tower not running.") + " start it with " + c.bold("tower start") + ".");
+    process.exit(1);
+  }
+}
+
+// --- commands: start / stop / restart / status --------------------------
+
+async function cmdStart(args) {
+  await ensureTowerDir();
+  const existing = isRunning();
+  if (existing) {
+    const port = readPort() || DEFAULT_PORT;
+    console.log(c.dim("tower already running") + ` (pid ${existing})`);
+    console.log("  " + c.bold("→ ") + `http://localhost:${port}`);
+    return;
+  }
+
+  // Clean stale pid
+  try { await fs.unlink(PID_FILE); } catch {}
+
+  const port = Number(optValue(args, "--port", DEFAULT_PORT)) || DEFAULT_PORT;
+  const mobile = flag(args, "--mobile");
+  const open = flag(args, "--open");
+  const noTelegram = flag(args, "--no-telegram");
+
+  // Persist for `tower restart`.
+  const saved = { port, mobile, open, noTelegram };
+  await fs.writeFile(LAST_ARGS_FILE, JSON.stringify(saved, null, 2));
+
+  // Server flags translation
+  const serverArgs = ["--port", String(port)];
+  if (mobile) serverArgs.push("--mobile");
+  if (open) serverArgs.push("--open");
+  if (noTelegram) serverArgs.push("--no-telegram");
+
+  // Open log file in append mode for child stdio.
+  const logFd = await openLogFd();
+
+  const child = spawn(process.execPath, [SERVER_JS, ...serverArgs], {
+    cwd: PROJECT_ROOT,
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+    env: { ...process.env, TOWER_PORT: String(port) },
+  });
+  child.unref();
+
+  await fs.writeFile(PID_FILE, String(child.pid));
+
+  // Wait until either the server is up or the child dies.
+  const ok = await waitForServer(port, 5000, child.pid);
+  if (!ok) {
+    console.error(c.red("tower failed to start within 5s."));
+    console.error(`check logs: ${c.bold("tower logs")}`);
+    process.exit(2);
+  }
+
+  console.log(c.green("tower started") + ` (pid ${child.pid})`);
+  console.log("  " + c.bold("→ ") + `http://localhost:${port}`);
+  if (mobile) {
+    console.log();
+    const token = await getOrCreateToken();
+    renderQr(`http://localhost:${port}/?token=${token}`, { token });
+  }
+}
+
+async function openLogFd() {
+  // fs.open returns FileHandle in promises API; we need a raw fd for spawn stdio.
+  const handle = await fs.open(LOG_FILE, "a");
+  return handle.fd;
+}
+
+async function waitForServer(port, timeoutMs, childPid) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (childPid && !isAlive(childPid)) return false; // crashed early
+    try {
+      const { status } = await httpRequest(port, "GET", "/api/version");
+      if (status && status < 500) return true;
+    } catch { /* retry */ }
+    await sleep(150);
+  }
+  return false;
+}
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+async function cmdStop() {
+  const pid = isRunning();
+  if (!pid) {
+    console.log(c.dim("tower not running."));
+    try { await fs.unlink(PID_FILE); } catch {}
+    return;
+  }
+  try { process.kill(pid, "SIGTERM"); } catch {}
+  const start = Date.now();
+  while (Date.now() - start < 5000) {
+    if (!isAlive(pid)) break;
+    await sleep(150);
+  }
+  if (isAlive(pid)) {
+    try { process.kill(pid, "SIGKILL"); } catch {}
+    await sleep(200);
+  }
+  try { await fs.unlink(PID_FILE); } catch {}
+  try { await fs.unlink(PORT_FILE); } catch {}
+  console.log(c.green("tower stopped") + ` (pid ${pid})`);
+}
+
+async function cmdRestart() {
+  let saved = {};
+  try { saved = JSON.parse(await fs.readFile(LAST_ARGS_FILE, "utf8")); }
+  catch { /* no saved args, use defaults */ }
+  await cmdStop();
+  await sleep(200);
+  const args = [];
+  if (saved.port) { args.push("--port", String(saved.port)); }
+  if (saved.mobile) args.push("--mobile");
+  if (saved.open) args.push("--open");
+  if (saved.noTelegram) args.push("--no-telegram");
+  await cmdStart(args);
+}
+
+async function cmdStatus() {
+  const pid = isRunning();
+  const port = readPort();
+  const running = Boolean(pid);
+
+  const lines = [];
+  lines.push(c.bold("claude-tower") + c.dim(" v" + VERSION));
+  lines.push("");
+  if (running) {
+    const up = uptimeMs(pid);
+    lines.push(`  status     ${c.green("● running")}`);
+    lines.push(`  pid        ${pid}`);
+    lines.push(`  port       ${port ?? "?"}`);
+    lines.push(`  uptime     ${up != null ? humanAge(up) : "—"}`);
+    lines.push(`  dashboard  http://localhost:${port ?? "?"}`);
+  } else {
+    lines.push(`  status     ${c.dim("○ stopped")}`);
+    lines.push(`  dashboard  ${c.dim("—")}`);
+  }
+
+  // Try live data if up.
+  if (running && port) {
+    const live = await safeGet(port, "/api/sessions");
+    if (live?.body?.sessions) {
+      lines.push(`  sessions   ${live.body.sessions.length}`);
+    }
+    const approvals = await safeGet(port, "/api/approvals");
+    const pendingCount = Array.isArray(approvals?.body?.pending)
+      ? approvals.body.pending.length
+      : Array.isArray(approvals?.body) ? approvals.body.length : 0;
+    lines.push(`  pending    ${pendingCount > 0 ? c.yellow(pendingCount) : pendingCount}`);
+    const usage = await safeGet(port, "/api/usage");
+    if (usage?.body) {
+      const cost = usage.body.totalCostUsd ?? usage.body.totalCost ?? 0;
+      lines.push(`  cost (∑)   $${Number(cost).toFixed(2)}`);
+    }
+    // Telegram status — best-effort. The endpoint doesn't expose GET, so just hint.
+    lines.push(`  telegram   ${c.dim("see logs")}`);
+  }
+
+  console.log(lines.join("\n"));
+}
+
+async function safeGet(port, path) {
+  try { return await httpRequest(port, "GET", path); }
+  catch { return null; }
+}
+
+// --- sessions ------------------------------------------------------------
+
+async function cmdSessions(args) {
+  const port = readPort();
+  requireServer(isRunning() ? port : null);
+  const showAll = flag(args, "--all");
+  const asJson = flag(args, "--json");
+
+  const { status, body } = await safeGet(port, "/api/sessions") || {};
+  if (status !== 200 || !body) {
+    console.error(c.red("could not fetch sessions from server."));
+    process.exit(2);
+  }
+  let sessions = body.sessions || [];
+  if (!showAll) {
+    sessions = sessions.filter((s) => !["stopped", "archived"].includes(s.status));
+  }
+
+  if (asJson) {
+    process.stdout.write(JSON.stringify(sessions, null, 2) + "\n");
+    return;
+  }
+
+  if (!sessions.length) {
+    console.log(c.dim(showAll ? "no sessions." : "no live sessions. try --all."));
+    return;
+  }
+
+  // Compute available terminal width — fall back to 80.
+  const termWidth = process.stdout.columns || 80;
+  // Fixed columns: STATUS (~12), AGE (~6), PROJECT (~24). Last prompt gets the rest.
+  const projectWidth = Math.min(24, Math.max(12, Math.floor(termWidth * 0.25)));
+  const fixed = 12 + 2 + 6 + 2 + projectWidth + 2; // include separators
+  const promptWidth = Math.max(20, termWidth - fixed - 1);
+
+  const rows = sessions.map((s) => {
+    const age = humanAge(s.ageMs);
+    const proj = truncate(s.project || s.cwd || "—", projectWidth);
+    const prompt = truncate((s.lastPrompt || s.title || "").replace(/\s+/g, " ").trim(), promptWidth);
+    return [statusLabel(s.status), age, proj, prompt];
+  });
+
+  console.log(table(rows, ["status", "age", "project", "last prompt"]));
+  console.log("");
+  console.log(c.dim(`${sessions.length} session${sessions.length === 1 ? "" : "s"}${showAll ? "" : " (live)"}`));
+}
+
+// --- approve / deny ------------------------------------------------------
+
+async function cmdApprove(args) {
+  const port = readPort();
+  requireServer(isRunning() ? port : null);
+
+  if (flag(args, "--all-pending")) {
+    const list = await safeGet(port, "/api/approvals");
+    const pending = list?.body?.pending || [];
+    if (!pending.length) {
+      console.log(c.dim("no pending approvals."));
+      return;
+    }
+    let ok = 0;
+    for (const a of pending) {
+      const res = await decide(port, a.id, "approve");
+      if (res) ok++;
+    }
+    console.log(c.green(`approved ${ok}/${pending.length}`));
+    return;
+  }
+
+  const id = positional(args)[0];
+  if (!id) {
+    console.error("usage: tower approve <id> | tower approve --all-pending");
+    process.exit(1);
+  }
+  const ok = await decide(port, id, "approve");
+  process.exit(ok ? 0 : 2);
+}
+
+async function cmdDeny(args) {
+  const port = readPort();
+  requireServer(isRunning() ? port : null);
+  const pos = positional(args);
+  const id = pos[0];
+  const reason = pos.slice(1).join(" ") || null;
+  if (!id) {
+    console.error("usage: tower deny <id> [reason]");
+    process.exit(1);
+  }
+  const ok = await decide(port, id, "deny", reason);
+  process.exit(ok ? 0 : 2);
+}
+
+async function decide(port, id, decision, reason = null) {
+  try {
+    const { status, body } = await httpRequest(port, "POST", `/api/approvals/${encodeURIComponent(id)}`, {
+      decision,
+      reason,
+      decidedBy: "cli",
+    });
+    if (status >= 200 && status < 300) {
+      const label = decision === "approve" ? c.green("approved") : c.red("denied");
+      console.log(`  ${label}  ${id}${reason ? c.dim(`  (${reason})`) : ""}`);
+      return true;
+    }
+    console.error(c.red(`  failed (${status})`) + `  ${id}: ${typeof body === "object" ? JSON.stringify(body) : body}`);
+    return false;
+  } catch (e) {
+    console.error(c.red("  request failed: ") + (e.message || e));
+    return false;
+  }
+}
+
+// --- hooks ---------------------------------------------------------------
+
+async function cmdInstallHooks() {
+  const installPath = path.join(PROJECT_ROOT, "lib", "hooks", "install.js");
+  if (!existsSync(installPath)) {
+    console.error(c.yellow("hooks subsystem not yet bundled."));
+    console.error(c.dim("(another agent is building it — try again after the next pull.)"));
+    process.exit(1);
+  }
+  const mod = await import(installPath);
+  if (typeof mod.installHooks !== "function") {
+    console.error(c.red("install.js found but installHooks() not exported."));
+    process.exit(2);
+  }
+  const result = await mod.installHooks();
+  console.log(c.green("hooks installed."));
+  if (result?.modified) console.log(c.dim("  edited: " + result.modified));
+}
+
+async function cmdUninstallHooks() {
+  const installPath = path.join(PROJECT_ROOT, "lib", "hooks", "install.js");
+  if (!existsSync(installPath)) {
+    console.error(c.yellow("hooks subsystem not yet bundled."));
+    process.exit(1);
+  }
+  const mod = await import(installPath);
+  if (typeof mod.uninstallHooks !== "function") {
+    console.error(c.red("install.js found but uninstallHooks() not exported."));
+    process.exit(2);
+  }
+  await mod.uninstallHooks();
+  console.log(c.green("hooks removed."));
+}
+
+// --- logs ----------------------------------------------------------------
+
+async function cmdLogs(args) {
+  const follow = flag(args, "--follow") || flag(args, "-f");
+  const linesArg = optValue(args, "--lines", "50");
+  const n = Math.max(1, Number(linesArg) || 50);
+
+  if (!existsSync(LOG_FILE)) {
+    console.log(c.dim("no log file yet. start tower first."));
+    return;
+  }
+
+  // Print last N lines
+  const tailArgs = ["-n", String(n)];
+  if (follow) tailArgs.push("-f");
+  tailArgs.push(LOG_FILE);
+  const child = spawn("tail", tailArgs, { stdio: "inherit" });
+  child.on("exit", (code) => process.exit(code ?? 0));
+}
+
+// --- mobile --------------------------------------------------------------
+
+async function cmdMobile() {
+  const port = readPort();
+  if (!isRunning() || !port) {
+    console.error(c.red("tower not running.") + " start it with " + c.bold("tower start --mobile") + ".");
+    process.exit(1);
+  }
+  const token = await getOrCreateToken();
+  const ip = lanIp();
+  const host = ip || "localhost";
+  const url = `http://${host}:${port}/?token=${token}`;
+  renderQr(url, { token });
+}
+
+function lanIp() {
+  const ifaces = os.networkInterfaces();
+  for (const list of Object.values(ifaces)) {
+    for (const it of list || []) {
+      if (it.family === "IPv4" && !it.internal && !it.address.startsWith("169.254.")) {
+        return it.address;
+      }
+    }
+  }
+  return null;
+}
+
+// --- db ------------------------------------------------------------------
+
+async function cmdDb() {
+  const dbPath = path.join(TOWER_DIR, "tower.sqlite");
+  if (!existsSync(dbPath)) {
+    console.error(c.dim("no database yet. start tower at least once: ") + c.bold("tower start"));
+    process.exit(1);
+  }
+  const bin = whichBin("sqlite3");
+  if (!bin) {
+    console.error(c.yellow("sqlite3 binary not found on PATH."));
+    console.error(c.dim("install via: ") + "brew install sqlite");
+    console.error(c.dim("DB file: ") + dbPath);
+    process.exit(1);
+  }
+  const child = spawn(bin, [dbPath], { stdio: "inherit" });
+  child.on("exit", (code) => process.exit(code ?? 0));
+}
+
+function whichBin(name) {
+  const PATH = process.env.PATH || "";
+  const sep = process.platform === "win32" ? ";" : ":";
+  for (const dir of PATH.split(sep)) {
+    if (!dir) continue;
+    const full = path.join(dir, name);
+    if (existsSync(full)) return full;
+  }
+  return null;
+}

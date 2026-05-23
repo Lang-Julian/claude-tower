@@ -5,6 +5,7 @@
 
 import http from "node:http";
 import path from "node:path";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 
@@ -18,6 +19,7 @@ import { mountHooks } from "./lib/hooks/routes.js";
 import { mountApprovals } from "./lib/approvals.js";
 import { mountUsage } from "./lib/usage.js";
 import { VERSION } from "./lib/config.js";
+import { TOWER_DIR, ensureTowerDir } from "./lib/paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -113,6 +115,14 @@ function isAllowedAddress(addr) {
 }
 
 server.listen(PORT, BIND, async () => {
+  // Advertise the bound port for the CLI (`tower status`, `tower mobile`, …).
+  try {
+    await ensureTowerDir();
+    fs.writeFileSync(path.join(TOWER_DIR, "port"), String(PORT));
+  } catch (e) {
+    console.error("failed to write port file:", e);
+  }
+
   console.log(`\n  ┌─ claude-tower v${VERSION}`);
   console.log(`  │`);
   console.log(`  │  Dashboard:  http://${BIND === "0.0.0.0" ? "localhost" : BIND}:${PORT}`);
