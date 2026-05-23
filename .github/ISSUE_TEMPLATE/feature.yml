@@ -1,0 +1,20 @@
+name: Feature request
+description: Something you'd like to see
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that's hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed solution
+      description: Optional — only if you have one in mind
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

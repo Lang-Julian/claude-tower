@@ -1,0 +1,35 @@
+name: Bug report
+description: Something's broken
+labels: [bug]
+body:
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: macOS version + `node -v` + `tower --version`
+      placeholder: macOS 15.2, Node 22.3, tower 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you expect, what did you see?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. tower start
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Last 50 lines of `~/.claude-tower/tower.log`
+      render: shell
