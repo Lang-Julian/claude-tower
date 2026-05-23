@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Stable entry-point for the Claude Code hook handler. Resolves the handler
+# script relative to this file, so users can symlink or move the install.
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec node "$DIR/lib/hooks/handler.js" "$@"

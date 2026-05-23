@@ -5,6 +5,7 @@
 
 import http from "node:http";
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 
@@ -20,7 +21,7 @@ import { mountUsage } from "./lib/usage.js";
 import { authorize, getOrCreateToken } from "./lib/auth.js";
 import { VERSION } from "./lib/config.js";
 import { promises as fsp } from "node:fs";
-import { TOWER_DIR, ensureTowerDir } from "./lib/paths.js";
+import { PORT_FILE, ensureTowerDir } from "./lib/paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -114,9 +115,13 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, BIND, async () => {
-  await ensureTowerDir();
   // Hook handler discovers the running server via this file.
-  await fsp.writeFile(path.join(TOWER_DIR, "port"), String(PORT));
+  try {
+    await ensureTowerDir();
+    await fsp.writeFile(PORT_FILE, String(PORT), "utf8");
+  } catch (e) {
+    console.error("could not write port file:", e);
+  }
 
   const host = BIND === "0.0.0.0" ? "localhost" : BIND;
   console.log(`\n  ┌─ claude-tower v${VERSION}`);
