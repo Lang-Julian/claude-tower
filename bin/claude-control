@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Launcher for Claude Control. Restarts cleanly if already running.
+
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PORT="${CLAUDE_CONTROL_PORT:-7777}"
+PID_FILE="${CLAUDE_CONTROL_PID_FILE:-$HOME/.cache/claude-control.pid}"
+LOG_FILE="${CLAUDE_CONTROL_LOG_FILE:-$HOME/.cache/claude-control.log}"
+
+mkdir -p "$(dirname "$PID_FILE")"
+
+cmd="${1:-start}"
+
+is_running() {
+  [[ -f "$PID_FILE" ]] || return 1
+  local pid
+  pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+  [[ -n "$pid" ]] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
+case "$cmd" in
+  start)
+    if is_running; then
+      echo "claude-control already running (pid $(cat "$PID_FILE"))"
+      echo "→ http://localhost:$PORT"
+      exit 0
+    fi
+    cd "$DIR"
+    nohup node server.js --open >> "$LOG_FILE" 2>&1 &
+    echo $! > "$PID_FILE"
+    sleep 0.4
+    echo "claude-control started (pid $(cat "$PID_FILE"))"
+    echo "→ http://localhost:$PORT"
+    echo "  logs: $LOG_FILE"
+    ;;
+  stop)
+    if is_running; then
+      pid="$(cat "$PID_FILE")"
+      kill "$pid" 2>/dev/null || true
+      rm -f "$PID_FILE"
+      echo "claude-control stopped (pid $pid)"
+    else
+      echo "not running"
+    fi
+    ;;
+  restart)
+    "$0" stop || true
+    sleep 0.3
+    "$0" start
+    ;;
+  status)
+    if is_running; then
+      echo "running (pid $(cat "$PID_FILE")) — http://localhost:$PORT"
+    else
+      echo "stopped"
+    fi
+    ;;
+  open)
+    "$0" start
+    /usr/bin/open "http://localhost:$PORT"
+    ;;
+  fg|run)
+    cd "$DIR"
+    exec node server.js "$@"
+    ;;
+  logs)
+    tail -f "$LOG_FILE"
+    ;;
+  *)
+    cat <<EOF
+claude-control — live cockpit for all your Claude Code sessions
+
+Usage:
+  claude-control start     start daemon and open dashboard
+  claude-control stop      stop daemon
+  claude-control restart   restart daemon
+  claude-control status    show status
+  claude-control open      ensure running + open browser
+  claude-control fg        run in foreground (Ctrl-C to quit)
+  claude-control logs      tail logs
+
+Env:
+  CLAUDE_CONTROL_PORT       (default 7777)
+  CLAUDE_CONTROL_POLL_MS    (default 2000)
+EOF
+    ;;
+esac

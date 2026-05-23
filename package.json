@@ -1,0 +1,41 @@
+{
+  "name": "claude-tower",
+  "version": "0.1.0",
+  "description": "Air-traffic control for your Claude Code swarm. See every session, approve permissions remotely, track cost — all on localhost.",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "tower": "./bin/tower",
+    "claude-tower": "./bin/tower"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ai-agent",
+    "dashboard",
+    "observability",
+    "mission-control",
+    "developer-tools"
+  ],
+  "author": "Julian Lang <j.lang@ai-z-group.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/julianlang/claude-tower.git"
+  },
+  "homepage": "https://github.com/julianlang/claude-tower#readme",
+  "bugs": {
+    "url": "https://github.com/julianlang/claude-tower/issues"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0"
+  }
+}

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Claude Control</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/pixel.css" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%230085C7'/><circle cx='16' cy='16' r='5' fill='%2300C2FF'/></svg>" />
+</head>
+<body data-view="town">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <h1>Claude Control</h1>
+      <span class="brand-sub">Live cockpit · AI-Z Group</span>
+    </div>
+    <div class="topbar-meta">
+      <button type="button" id="soundToggle" class="icon-btn" aria-pressed="true" title="Sound an">🔊</button>
+      <div class="view-toggle" role="tablist" aria-label="View">
+        <button type="button" id="viewTown" aria-pressed="true">▣ Town</button>
+        <button type="button" id="viewCards" aria-pressed="false">▦ Cards</button>
+      </div>
+      <label class="toggle" title="Telegram-Push bei needs_input / needs_permission">
+        <input id="notifierToggle" type="checkbox" checked />
+        <span>Telegram</span>
+      </label>
+      <span id="conn" class="pill pill-muted">verbinde…</span>
+      <span id="updated" class="pill pill-muted">—</span>
+    </div>
+  </header>
+
+  <!-- Town view -->
+  <div id="town-wrap">
+    <div class="town-hud" id="townHud"></div>
+    <div class="town-filter" id="townFilter">
+      <button class="filter-chip" data-filter="all"       aria-pressed="true">alle</button>
+      <button class="filter-chip" data-filter="attention" aria-pressed="false">⚔ attention</button>
+      <button class="filter-chip" data-filter="active"    aria-pressed="false">⚡ aktiv</button>
+      <button class="filter-chip" data-filter="idle"      aria-pressed="false">💤 idle</button>
+    </div>
+    <main class="town" id="town"></main>
+    <aside class="quest-log" id="quests"></aside>
+  </div>
+
+  <!-- Cards view -->
+  <section class="summary" id="summary"></section>
+  <main id="grid" class="grid"></main>
+
+  <footer class="footer">
+    <span>Port <code id="portInfo">localhost</code> · Polling alle 2s · <kbd>v</kbd> View · <kbd>t</kbd> Telegram · <kbd>r</kbd> Reload · Click = iTerm-Tab fokussieren</span>
+  </footer>
+
+  <template id="cardTpl">
+    <article class="card" data-status="">
+      <header>
+        <span class="status-dot"></span>
+        <span class="status-label"></span>
+        <span class="age"></span>
+      </header>
+      <h2 class="title"></h2>
+      <p class="prompt"></p>
+      <div class="timeline" title=""></div>
+      <footer>
+        <span class="project"></span>
+        <span class="pid"></span>
+      </footer>
+      <div class="meta-row">
+        <span class="pr"></span>
+        <span class="permission-mode"></span>
+        <span class="git-branch"></span>
+      </div>
+    </article>
+  </template>
+
+  <script src="/store.js" type="module"></script>
+  <script src="/particles.js" type="module"></script>
+  <script src="/minimap.js" type="module"></script>
+  <script src="/app.js" type="module"></script>
+  <script src="/pixel.js" type="module"></script>
+  <script src="/view.js" type="module"></script>
+</body>
+</html>
