@@ -5,6 +5,7 @@
 
 import http from "node:http";
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 
@@ -18,6 +19,7 @@ import { mountHooks } from "./lib/hooks/routes.js";
 import { mountApprovals } from "./lib/approvals.js";
 import { mountUsage } from "./lib/usage.js";
 import { VERSION } from "./lib/config.js";
+import { PORT_FILE, ensureTowerDir } from "./lib/paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -113,6 +115,15 @@ function isAllowedAddress(addr) {
 }
 
 server.listen(PORT, BIND, async () => {
+  // Drop a port file so the hook handler (a separate Node process spawned by
+  // Claude Code) can find us without an env var being set in the user's shell.
+  try {
+    await ensureTowerDir();
+    await fs.writeFile(PORT_FILE, String(PORT), "utf8");
+  } catch (e) {
+    console.error("could not write port file:", e);
+  }
+
   console.log(`\n  ┌─ claude-tower v${VERSION}`);
   console.log(`  │`);
   console.log(`  │  Dashboard:  http://${BIND === "0.0.0.0" ? "localhost" : BIND}:${PORT}`);
