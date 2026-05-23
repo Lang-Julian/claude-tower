@@ -1,37 +1,34 @@
-// Claude Control — local cockpit for all running Claude Code sessions.
-// Zero external deps: native http + SSE + fs.
-//
-// Endpoints:
-//   GET  /                  → dashboard
-//   GET  /style.css         → static
-//   GET  /app.js            → static
-//   GET  /api/sessions      → JSON snapshot
-//   GET  /api/events        → SSE stream (snapshot every POLL_MS)
-//   POST /api/focus         → { tty } → focus iTerm tab via AppleScript
-//   POST /api/notifier      → { enabled: bool } → toggle Telegram pings
+// claude-tower — local cockpit for all running Claude Code sessions.
 //
 // CLI:
-//   node server.js [--port 7777] [--no-telegram] [--open]
+//   node server.js [--port 7777] [--no-telegram] [--mobile] [--open]
 
 import http from "node:http";
 import path from "node:path";
-import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 
+import { createApp, sendJson, send } from "./lib/router.js";
 import { snapshot } from "./lib/sessions.js";
 import { processIndex } from "./lib/processes.js";
 import { focusTty } from "./lib/iterm.js";
 import { Notifier } from "./lib/notifier.js";
+import { getDb } from "./lib/db.js";
+import { mountHooks } from "./lib/hooks/routes.js";
+import { mountApprovals } from "./lib/approvals.js";
+import { mountUsage } from "./lib/usage.js";
+import { VERSION } from "./lib/config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
 
 const args = process.argv.slice(2);
-const PORT = Number(getArg("--port") || process.env.CLAUDE_CONTROL_PORT || 7777);
+const PORT = Number(getArg("--port") || process.env.TOWER_PORT || 7777);
 const TELEGRAM_ENABLED = !args.includes("--no-telegram");
 const OPEN_IN_BROWSER = args.includes("--open");
-const POLL_MS = Number(process.env.CLAUDE_CONTROL_POLL_MS || 2000);
+const MOBILE = args.includes("--mobile");
+const POLL_MS = Number(process.env.TOWER_POLL_MS || 2000);
+const BIND = MOBILE ? "0.0.0.0" : "127.0.0.1";
 
 function getArg(name) {
   const i = args.indexOf(name);
@@ -39,6 +36,7 @@ function getArg(name) {
 }
 
 const notifier = new Notifier({ enabled: TELEGRAM_ENABLED });
+const app = createApp({ publicDir: PUBLIC_DIR });
 
 let latest = { sessions: [], generatedAt: 0 };
 
@@ -48,135 +46,78 @@ async function refresh() {
     const sessions = await snapshot(procs);
     latest = { sessions, generatedAt: Date.now(), processCount: procs.all.length };
     await notifier.onSnapshot(sessions);
-    broadcast({ type: "snapshot", ...latest });
+    app.broadcast({ type: "snapshot", ...latest });
   } catch (e) {
     console.error("refresh failed:", e);
   }
 }
 
-// --- SSE plumbing ---
-const sseClients = new Set();
-function broadcast(payload) {
-  const data = `data: ${JSON.stringify(payload)}\n\n`;
-  for (const res of sseClients) {
-    try { res.write(data); } catch { /* ignore */ }
-  }
-}
+// --- core routes ---
 
-// --- static ---
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "application/javascript; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".ico": "image/x-icon",
-};
+app.route("GET", "/api/sessions", ({ res }) => sendJson(res, 200, latest));
 
-async function serveStatic(req, res, urlPath) {
-  const rel = urlPath === "/" ? "/index.html" : urlPath;
-  const safe = path.normalize(rel).replace(/^\/+/, "");
-  const full = path.join(PUBLIC_DIR, safe);
-  if (!full.startsWith(PUBLIC_DIR)) return send(res, 403, "forbidden");
-  try {
-    const body = await fs.readFile(full);
-    const ext = path.extname(full);
-    res.writeHead(200, {
-      "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control": "no-cache",
-    });
-    res.end(body);
-  } catch {
-    send(res, 404, "not found");
-  }
-}
-
-function send(res, status, body, type = "text/plain; charset=utf-8") {
-  res.writeHead(status, { "Content-Type": type });
-  res.end(body);
-}
-
-function sendJson(res, status, obj) {
-  res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
+app.route("GET", "/api/events", ({ req, res }) => {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
   });
-  res.end(JSON.stringify(obj));
-}
-
-async function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let data = "";
-    req.on("data", (c) => { data += c; if (data.length > 1e6) req.destroy(); });
-    req.on("end", () => resolve(data));
-    req.on("error", reject);
-  });
-}
-
-// --- routes ---
-const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-
-  // bind only to localhost — never expose to the network
-  if (req.socket.remoteAddress && !isLocalAddress(req.socket.remoteAddress)) {
-    return send(res, 403, "forbidden: localhost only");
-  }
-
-  if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/api/sessions") {
-    return sendJson(res, 200, latest);
-  }
-
-  if (req.method === "GET" && url.pathname === "/api/events") {
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
-      "X-Accel-Buffering": "no",
-    });
-    res.write(`data: ${JSON.stringify({ type: "snapshot", ...latest })}\n\n`);
-    sseClients.add(res);
-    req.on("close", () => sseClients.delete(res));
-    return;
-  }
-
-  if (req.method === "POST" && url.pathname === "/api/focus") {
-    try {
-      const body = JSON.parse((await readBody(req)) || "{}");
-      const result = await focusTty(body.tty);
-      return sendJson(res, 200, result);
-    } catch (e) {
-      return sendJson(res, 400, { ok: false, error: String(e) });
-    }
-  }
-
-  if (req.method === "POST" && url.pathname === "/api/notifier") {
-    try {
-      const body = JSON.parse((await readBody(req)) || "{}");
-      notifier.enabled = Boolean(body.enabled);
-      return sendJson(res, 200, { enabled: notifier.enabled });
-    } catch (e) {
-      return sendJson(res, 400, { ok: false, error: String(e) });
-    }
-  }
-
-  if (req.method === "GET" || req.method === "HEAD") {
-    return serveStatic(req, res, url.pathname);
-  }
-
-  send(res, 404, "not found");
+  res.write(`data: ${JSON.stringify({ type: "snapshot", ...latest })}\n\n`);
+  const remove = app.addSseClient(res);
+  req.on("close", remove);
 });
 
-function isLocalAddress(addr) {
+app.route("POST", "/api/focus", async ({ res, body }) => {
+  try {
+    const data = JSON.parse((await body()) || "{}");
+    const result = await focusTty(data.tty);
+    sendJson(res, 200, result);
+  } catch (e) {
+    sendJson(res, 400, { ok: false, error: String(e) });
+  }
+});
+
+app.route("POST", "/api/notifier", async ({ res, body }) => {
+  try {
+    const data = JSON.parse((await body()) || "{}");
+    notifier.enabled = Boolean(data.enabled);
+    sendJson(res, 200, { enabled: notifier.enabled });
+  } catch (e) {
+    sendJson(res, 400, { ok: false, error: String(e) });
+  }
+});
+
+app.route("GET", "/api/version", ({ res }) => sendJson(res, 200, { version: VERSION }));
+
+// --- feature modules mount their own routes ---
+
+const db = await getDb();
+mountHooks(app, { db, notifier });
+mountApprovals(app, { db, notifier });
+mountUsage(app, { db });
+
+// --- server ---
+
+const server = http.createServer((req, res) => {
+  if (req.socket.remoteAddress && !isAllowedAddress(req.socket.remoteAddress)) {
+    return send(res, 403, "forbidden");
+  }
+  app.handle(req, res);
+});
+
+function isAllowedAddress(addr) {
   if (!addr) return false;
-  // Accept IPv4/IPv6 loopback only.
-  return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
+  if (addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1") return true;
+  return MOBILE; // --mobile opens to LAN; auth middleware (not impl yet) guards it
 }
 
-server.listen(PORT, "127.0.0.1", async () => {
-  console.log(`\n  ┌─ Claude Control`);
+server.listen(PORT, BIND, async () => {
+  console.log(`\n  ┌─ claude-tower v${VERSION}`);
   console.log(`  │`);
-  console.log(`  │  Dashboard:  http://localhost:${PORT}`);
-  console.log(`  │  Telegram:   ${TELEGRAM_ENABLED ? "on (Branestormbot)" : "off"}`);
+  console.log(`  │  Dashboard:  http://${BIND === "0.0.0.0" ? "localhost" : BIND}:${PORT}`);
+  console.log(`  │  Mobile:     ${MOBILE ? "ON (LAN bind)" : "off"}`);
+  console.log(`  │  Telegram:   ${TELEGRAM_ENABLED ? "on" : "off"}`);
   console.log(`  │  Poll:       ${POLL_MS}ms`);
   console.log(`  └────────────────────────────────────\n`);
 
