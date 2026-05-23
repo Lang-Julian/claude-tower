@@ -534,6 +534,92 @@ body[data-filter="idle"]      .room:not(:has(.sprite[data-group="idle"]))      {
 /* Confetti, sparkles, and bursts now rendered on a canvas (particles.js).
    See #fxCanvas. CSS-only fallbacks below are kept for safety. */
 
+/* ─── Approval buttons (web approve/deny inside cards) ──────── */
+.approval-bar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02));
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 8px;
+  font-family: var(--az-font-mono);
+  animation: approval-pulse 1.6s ease-in-out infinite;
+}
+@keyframes approval-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50%      { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12); }
+}
+.approval-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.approval-tool {
+  font-weight: 700;
+  color: var(--az-rose, #fb7185);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+.approval-summary {
+  flex: 1 1 100%;
+  color: var(--az-text-muted);
+  font-size: 11px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  max-height: 2.8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.approval-actions {
+  display: flex;
+  gap: 8px;
+}
+.pixel-btn {
+  flex: 1;
+  appearance: none;
+  border: 1px solid var(--az-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--az-text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: var(--az-font-pixel);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: transform 80ms ease, background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.pixel-btn:hover { transform: translateY(-1px); }
+.pixel-btn:active { transform: translateY(0); }
+.pixel-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.approve-btn {
+  border-color: rgba(34, 197, 94, 0.55);
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.08);
+}
+.approve-btn:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.18);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.35);
+}
+.deny-btn {
+  border-color: rgba(239, 68, 68, 0.55);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+.deny-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.18);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+.approval-status {
+  font-size: 10px;
+  color: var(--az-text-dim);
+  min-height: 1.2em;
+}
+
 /* ─── Mini-map ─────────────────────────────────────────────── */
 #minimap {
   order: 99;
