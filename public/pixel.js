@@ -530,7 +530,7 @@ function showBubble(spriteEl, skipReposition = false) {
       ${data.branch ? `<span class="bub-branch">⎇ ${escapeHtml(data.branch)}</span>` : ""}
       ${data.pid ? `<span class="bub-pid">pid ${data.pid}</span>` : ""}
     </div>
-    <div class="bub-hint">click → iTerm fokussieren</div>
+    <div class="bub-hint">click → focus iTerm tab</div>
   `;
   bub.style.display = "block";
 
@@ -554,13 +554,13 @@ function hideBubble() {
 }
 
 const STATUS_DE = {
-  needs_input: "wartet auf dich",
-  needs_permission: "braucht Permission",
-  thinking: "denkt",
-  running: "aktiv",
-  idle: "schläft",
-  stopped: "gestoppt",
-  archived: "archiviert",
+  needs_input: "waiting for you",
+  needs_permission: "needs permission",
+  thinking: "thinking",
+  running: "active",
+  idle: "sleeping",
+  stopped: "stopped",
+  archived: "archived",
 };
 
 async function focusSession(session, spriteEl) {
@@ -759,10 +759,10 @@ function ensureHudStats() {
     return el;
   };
   hudStatEls.thinking = mk("hud-thinking", "thinking");
-  hudStatEls.waiting  = mk("hud-waiting",  "wartet");
+  hudStatEls.waiting  = mk("hud-waiting",  "waiting");
   hudStatEls.perm     = mk("hud-perm",     "perm");
   hudStatEls.idle     = mk("hud-idle",     "idle");
-  hudStatEls.stopped  = mk("hud-stopped",  "gestoppt");
+  hudStatEls.stopped  = mk("hud-stopped",  "stopped");
 }
 
 function renderQuests(sessions) {
@@ -915,7 +915,7 @@ function notifyBrowser(status, session) {
   if (document.visibilityState === "visible") return; // already audible+visible
   try {
     const ws = workspaceFor(session.cwd).label;
-    const verb = status === "needs_permission" ? "braucht Permission" : "wartet auf dich";
+    const verb = status === "needs_permission" ? "needs permission" : "is waiting for you";
     const body = session.lastPrompt ? session.lastPrompt.slice(0, 140) : (session.title || "");
     const n = new Notification(`${ws} ${verb}`, {
       body, tag: session.id, silent: false, icon: "/favicon.svg",

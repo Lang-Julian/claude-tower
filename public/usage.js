@@ -50,7 +50,7 @@ function ensureTopbarPill() {
   pill = document.createElement("span");
   pill.id = "costPill";
   pill.className = "pill cost-pill cost-pill-top";
-  pill.title = "Token-Kosten heute · Burn-Rate letzte 60min";
+  pill.title = "Token cost today · burn-rate over the last 60min";
   pill.textContent = "—";
   meta.insertBefore(pill, meta.firstChild);
   return pill;
@@ -61,7 +61,7 @@ function updateTopbar(data) {
   if (!pill) return;
   const today = data.today?.costUsd || 0;
   const burn = data.burnRateUsdPerHour || 0;
-  pill.textContent = `${fmtUsd(today)} heute · ${fmtUsd(burn)}/h`;
+  pill.textContent = `${fmtUsd(today)} today · ${fmtUsd(burn)}/h`;
   pill.dataset.hot = burn > 50 ? "1" : "0";
 }
 

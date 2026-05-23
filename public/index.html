@@ -19,16 +19,16 @@
       <span class="brand-sub">Mission control for your Claude Code swarm</span>
     </div>
     <div class="topbar-meta">
-      <button type="button" id="soundToggle" class="icon-btn" aria-pressed="true" title="Sound an">🔊</button>
+      <button type="button" id="soundToggle" class="icon-btn" aria-pressed="true" title="Sound on (click to mute)">🔊</button>
       <div class="view-toggle" role="tablist" aria-label="View">
         <button type="button" id="viewTown" aria-pressed="true">▣ Town</button>
         <button type="button" id="viewCards" aria-pressed="false">▦ Cards</button>
       </div>
-      <label class="toggle" title="Telegram-Push bei needs_input / needs_permission">
+      <label class="toggle" title="Telegram push when an agent needs input or permission">
         <input id="notifierToggle" type="checkbox" checked />
         <span>Telegram</span>
       </label>
-      <span id="conn" class="pill pill-muted">verbinde…</span>
+      <span id="conn" class="pill pill-muted">connecting…</span>
       <span id="updated" class="pill pill-muted">—</span>
     </div>
   </header>
@@ -37,9 +37,9 @@
   <div id="town-wrap">
     <div class="town-hud" id="townHud"></div>
     <div class="town-filter" id="townFilter">
-      <button class="filter-chip" data-filter="all"       aria-pressed="true">alle</button>
+      <button class="filter-chip" data-filter="all"       aria-pressed="true">all</button>
       <button class="filter-chip" data-filter="attention" aria-pressed="false">⚔ attention</button>
-      <button class="filter-chip" data-filter="active"    aria-pressed="false">⚡ aktiv</button>
+      <button class="filter-chip" data-filter="active"    aria-pressed="false">⚡ active</button>
       <button class="filter-chip" data-filter="idle"      aria-pressed="false">💤 idle</button>
     </div>
     <main class="town" id="town"></main>
@@ -51,7 +51,7 @@
   <main id="grid" class="grid"></main>
 
   <footer class="footer">
-    <span>Port <code id="portInfo">localhost</code> · Polling alle 2s · <kbd>v</kbd> View · <kbd>t</kbd> Telegram · <kbd>r</kbd> Reload · Click = iTerm-Tab fokussieren</span>
+    <span><code id="portInfo">localhost</code> · live · <kbd>v</kbd> view · <kbd>a</kbd> approve · <kbd>d</kbd> deny · <kbd>t</kbd> telegram · <kbd>r</kbd> reload · click → iTerm focus</span>
   </footer>
 
   <template id="cardTpl">

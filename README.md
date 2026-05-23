@@ -12,6 +12,8 @@ All on `localhost`.
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)]()
 [![Made for Claude Code](https://img.shields.io/badge/made_for-Claude_Code-D97757)](https://claude.com/claude-code)
 
+![claude-tower cards view with two pending approvals](./docs/img/cards.png)
+
 </div>
 
 ---
@@ -25,17 +27,12 @@ You don't see any of it.
 
 `claude-tower` watches them all. It runs on your laptop, talks to nothing on the internet, and turns the chaos into a single board you actually look at.
 
-```
-  ┌─ claude-tower ───────────────────────── 5 sessions ── $4.23 today ── $1.10/h ──┐
-  │                                                                                │
-  │   ● needs you      ai-in-the-box       "approve npm publish?"      pid 10901   │
-  │   ● permission     brane-aif           "Bash: rm -rf node_modules"     [a/d]   │
-  │   ◐ thinking       ai-z-website        editing landing.tsx           pid 7894  │
-  │   ○ idle 4m        ki-schulungen       last: deploy to vercel        pid 9452  │
-  │   ○ idle 22m       holding-docs        last: contract review         pid 5298  │
-  │                                                                                │
-  └────────────────────────────────────────────────────────────────────────────────┘
-```
+**Two views, one truth:**
+
+| Cards (analytical) | Town (ambient) |
+|---|---|
+| ![](./docs/img/cards.png) | ![](./docs/img/town.png) |
+| status, cost, sparkline, last prompt, approve/deny inline | each session is a pixel character in their project's "house" |
 
 ## What makes it different
 

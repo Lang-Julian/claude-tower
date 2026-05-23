@@ -13,25 +13,25 @@ const notifierToggle = document.getElementById("notifierToggle");
 portInfo.textContent = location.host;
 
 const STATUS_LABEL = {
-  needs_input: "wartet auf dich",
+  needs_input: "waiting for you",
   needs_permission: "permission",
-  thinking: "denkt",
-  running: "aktiv",
+  thinking: "thinking",
+  running: "active",
   idle: "idle",
-  stopped: "gestoppt",
-  archived: "archiviert",
+  stopped: "stopped",
+  archived: "archived",
 };
 
 const STATUS_ORDER = ["needs_input", "needs_permission", "thinking", "running", "idle", "stopped", "archived"];
 
 function fmtAge(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `vor ${s}s`;
+  if (s < 60) return `${s}s`;
   const m = Math.round(s / 60);
-  if (m < 60) return `vor ${m}m`;
+  if (m < 60) return `${m}m`;
   const h = Math.round(m / 60);
-  if (h < 24) return `vor ${h}h`;
-  return `vor ${Math.round(h / 24)}d`;
+  if (h < 24) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
 }
 
 function fmtTitle(s) {
@@ -61,12 +61,12 @@ function renderSummary(sessions) {
 
   summary.innerHTML = "";
   const stats = [
-    { key: "attention", label: "Brauchen dich", value: counts.attention },
-    { key: "thinking", label: "Denken", value: counts.thinking },
-    { key: "running", label: "Aktiv", value: counts.running },
+    { key: "attention", label: "Attention", value: counts.attention },
+    { key: "thinking", label: "Thinking", value: counts.thinking },
+    { key: "running", label: "Active", value: counts.running },
     { key: "idle", label: "Idle", value: counts.idle },
-    { key: "stopped", label: "Gestoppt", value: counts.stopped },
-    { key: "total", label: "Gesamt", value: counts.total },
+    { key: "stopped", label: "Stopped", value: counts.stopped },
+    { key: "total", label: "Total", value: counts.total },
   ];
   for (const s of stats) {
     const el = document.createElement("div");
@@ -209,13 +209,13 @@ function render(snapshot) {
   }
 
   if (!sessions.length) {
-    grid.innerHTML = '<div class="empty">Keine aktiven Sessions. Starte irgendwo <code>claude</code> — sie taucht hier auf.</div>';
+    grid.innerHTML = '<div class="empty">No active sessions. Run <code>claude</code> anywhere — it shows up here.</div>';
   } else if (grid.querySelector(".empty")) {
     grid.querySelector(".empty").remove();
   }
 
   const ts = new Date(snapshot.generatedAt || Date.now());
-  updatedEl.textContent = `aktualisiert ${ts.toLocaleTimeString("de-DE")}`;
+  updatedEl.textContent = ts.toLocaleTimeString();
 }
 
 function updateCard(node, session) {
@@ -235,7 +235,7 @@ onConn((state) => {
     connEl.classList.remove("pill-live");
     connEl.classList.add("pill-muted");
   } else {
-    connEl.textContent = "verbinde…";
+    connEl.textContent = "connecting…";
   }
 });
 
