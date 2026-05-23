@@ -91,14 +91,18 @@ function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 
 function paintCard(cardEl) {
   const sessionId = cardEl.dataset.id;
-  const status = cardEl.dataset.status;
   const a = approvalForSession(sessionId);
-  const want = status === "needs_permission" && a;
   const existing = cardEl.querySelector(".approval-bar");
-  if (!want) {
+  // The presence of a pending approval row is itself the trigger — don't
+  // gate on card.dataset.status, because the session-snapshot scanner can
+  // be slow to flip status to "needs_permission" (or may never see it if
+  // the hook fired faster than the JSONL was flushed).
+  if (!a) {
     if (existing) existing.remove();
     return;
   }
+  // Promote the card visually so it stands out in any view.
+  cardEl.dataset.status = "needs_permission";
   const bar = ensureApprovalUI(cardEl);
   bar.dataset.approvalId = a.id;
   bar.querySelector(".approval-tool").textContent = a.tool_name || "tool";
@@ -165,7 +169,7 @@ window.addEventListener("click", () => {
 }, { passive: true, once: false });
 
 function isSoundOn() {
-  try { return localStorage.getItem("claude-control-sound") !== "off"; } catch { return true; }
+  try { return localStorage.getItem("tower:sound") !== "off"; } catch { return true; }
 }
 function playApprovalAlert() {
   if (document.hidden) return;

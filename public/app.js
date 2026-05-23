@@ -1,4 +1,4 @@
-// Claude Control — cards view client.
+// claude-tower — cards view client.
 // Subscribes to the shared SSE store (store.js).
 
 import { subscribe, onConn } from "/store.js";

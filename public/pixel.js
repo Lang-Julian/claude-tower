@@ -858,10 +858,10 @@ function unlockAudio() {
   window.addEventListener(ev, unlockAudio, { once: false, passive: true })
 );
 function isSoundOn() {
-  try { return localStorage.getItem("claude-control-sound") !== "off"; } catch { return true; }
+  try { return localStorage.getItem("tower:sound") !== "off"; } catch { return true; }
 }
 function setSoundOn(on) {
-  try { localStorage.setItem("claude-control-sound", on ? "on" : "off"); } catch {}
+  try { localStorage.setItem("tower:sound", on ? "on" : "off"); } catch {}
   syncSoundToggle();
 }
 function playBing(kind) {
@@ -946,10 +946,10 @@ function fireConfetti() {
 
 // ─── Filter ─────────────────────────────────────────────────────
 function currentFilter() {
-  try { return localStorage.getItem("claude-control-filter") || "all"; } catch { return "all"; }
+  try { return localStorage.getItem("tower:filter") || "all"; } catch { return "all"; }
 }
 function setFilter(f) {
-  try { localStorage.setItem("claude-control-filter", f); } catch {}
+  try { localStorage.setItem("tower:filter", f); } catch {}
   document.body.dataset.filter = f;
   for (const btn of document.querySelectorAll(".filter-chip")) {
     btn.setAttribute("aria-pressed", btn.dataset.filter === f ? "true" : "false");
