@@ -17,7 +17,10 @@ import { getDb } from "./lib/db.js";
 import { mountHooks } from "./lib/hooks/routes.js";
 import { mountApprovals } from "./lib/approvals.js";
 import { mountUsage } from "./lib/usage.js";
+import { authorize, getOrCreateToken } from "./lib/auth.js";
 import { VERSION } from "./lib/config.js";
+import { promises as fsp } from "node:fs";
+import { TOWER_DIR, ensureTowerDir } from "./lib/paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -99,26 +102,30 @@ mountUsage(app, { db });
 
 // --- server ---
 
+const TOKEN = MOBILE ? await getOrCreateToken() : null;
+
 const server = http.createServer((req, res) => {
-  if (req.socket.remoteAddress && !isAllowedAddress(req.socket.remoteAddress)) {
-    return send(res, 403, "forbidden");
+  const decision = authorize(req, { mobile: MOBILE, token: TOKEN });
+  if (!decision) return send(res, 403, "forbidden");
+  if (decision === "set-cookie") {
+    res.setHeader("Set-Cookie", `tower_token=${encodeURIComponent(TOKEN)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
   }
   app.handle(req, res);
 });
 
-function isAllowedAddress(addr) {
-  if (!addr) return false;
-  if (addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1") return true;
-  return MOBILE; // --mobile opens to LAN; auth middleware (not impl yet) guards it
-}
-
 server.listen(PORT, BIND, async () => {
+  await ensureTowerDir();
+  // Hook handler discovers the running server via this file.
+  await fsp.writeFile(path.join(TOWER_DIR, "port"), String(PORT));
+
+  const host = BIND === "0.0.0.0" ? "localhost" : BIND;
   console.log(`\n  ┌─ claude-tower v${VERSION}`);
   console.log(`  │`);
-  console.log(`  │  Dashboard:  http://${BIND === "0.0.0.0" ? "localhost" : BIND}:${PORT}`);
-  console.log(`  │  Mobile:     ${MOBILE ? "ON (LAN bind)" : "off"}`);
+  console.log(`  │  Dashboard:  http://${host}:${PORT}`);
+  console.log(`  │  Mobile:     ${MOBILE ? "ON (LAN bind, token-auth)" : "off"}`);
   console.log(`  │  Telegram:   ${TELEGRAM_ENABLED ? "on" : "off"}`);
   console.log(`  │  Poll:       ${POLL_MS}ms`);
+  if (MOBILE) console.log(`  │  Token:      ${TOKEN}`);
   console.log(`  └────────────────────────────────────\n`);
 
   await refresh();
