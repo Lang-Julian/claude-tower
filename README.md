@@ -148,7 +148,7 @@ See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full spec.
 PRs welcome. Stack is intentionally boring: pure Node ESM, vanilla JS frontend, one native dep. No build step, no framework lock-in.
 
 ```bash
-git clone https://github.com/julianlang/claude-tower.git
+git clone https://github.com/Lang-Julian/claude-tower.git
 cd claude-tower
 npm install
 node server.js
@@ -164,8 +164,8 @@ MIT — see [LICENSE](./LICENSE).
 
 <div align="center">
 
-Built by [Julian Lang](https://github.com/julianlang) · [AI-Z Group](https://ai-z-group.com)
+Built by [Julian Lang](https://github.com/Lang-Julian) · [AI-Z Group](https://ai-z-group.com)
 
-If this saves you 10 minutes a day, [drop a ⭐ on the repo](https://github.com/julianlang/claude-tower).
+If this saves you 10 minutes a day, [drop a ⭐ on the repo](https://github.com/Lang-Julian/claude-tower).
 
 </div>

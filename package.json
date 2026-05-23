@@ -29,11 +29,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/julianlang/claude-tower.git"
+    "url": "git+https://github.com/Lang-Julian/claude-tower.git"
   },
-  "homepage": "https://github.com/julianlang/claude-tower#readme",
+  "homepage": "https://github.com/Lang-Julian/claude-tower#readme",
   "bugs": {
-    "url": "https://github.com/julianlang/claude-tower/issues"
+    "url": "https://github.com/Lang-Julian/claude-tower/issues"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0"

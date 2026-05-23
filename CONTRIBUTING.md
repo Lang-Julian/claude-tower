@@ -13,7 +13,7 @@ Thanks for considering it. The repo is intentionally small and boring — that's
 ## Dev setup
 
 ```bash
-git clone https://github.com/julianlang/claude-tower.git
+git clone https://github.com/Lang-Julian/claude-tower.git
 cd claude-tower
 npm install
 node server.js          # http://localhost:7777
