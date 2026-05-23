@@ -5,7 +5,6 @@
 
 import http from "node:http";
 import path from "node:path";
-import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 
@@ -115,7 +114,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, BIND, async () => {
-  // Hook handler discovers the running server via this file.
+  // Discoverable port file used by the hook handler and the CLI.
   try {
     await ensureTowerDir();
     await fsp.writeFile(PORT_FILE, String(PORT), "utf8");
