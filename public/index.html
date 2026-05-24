@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/theme.css" />
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/pixel.css" />
+  <link rel="stylesheet" href="/cards.css" />
   <link rel="stylesheet" href="/hud.css" />
   <link rel="stylesheet" href="/palette.css" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%230085C7'/><circle cx='16' cy='16' r='5' fill='%2300C2FF'/></svg>" />
@@ -84,15 +85,19 @@
   </footer>
 
   <template id="cardTpl">
-    <article class="card" data-status="">
+    <article class="card" data-status="" tabindex="0">
       <header>
-        <span class="status-dot"></span>
+        <span class="orb status-dot" data-status="" aria-label="status"></span>
         <span class="status-label"></span>
         <span class="age"></span>
       </header>
       <h2 class="title"></h2>
       <p class="prompt"></p>
       <div class="timeline" title=""></div>
+      <div class="spark-row">
+        <span class="sparkline"></span>
+        <svg class="spark-svg" viewBox="0 0 60 16" aria-hidden="true"></svg>
+      </div>
       <footer>
         <span class="project"></span>
         <span class="pid"></span>

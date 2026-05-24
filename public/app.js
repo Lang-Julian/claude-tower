@@ -22,6 +22,16 @@ const STATUS_LABEL = {
   archived: "archived",
 };
 
+// Map a stat key to the orb status that visually represents it.
+const STAT_ORB_STATUS = {
+  attention: "needs_permission",
+  thinking: "thinking",
+  running: "running",
+  idle: "idle",
+  stopped: "stopped",
+  total: "running",
+};
+
 const STATUS_ORDER = ["needs_input", "needs_permission", "thinking", "running", "idle", "stopped", "archived"];
 
 function fmtAge(ms) {
@@ -59,7 +69,6 @@ function renderSummary(sessions) {
     else counts.stopped++;
   }
 
-  summary.innerHTML = "";
   const stats = [
     { key: "attention", label: "Attention", value: counts.attention },
     { key: "thinking", label: "Thinking", value: counts.thinking },
@@ -68,12 +77,27 @@ function renderSummary(sessions) {
     { key: "stopped", label: "Stopped", value: counts.stopped },
     { key: "total", label: "Total", value: counts.total },
   ];
+
+  // Diff-render so the count-up transition stays smooth (no flicker).
+  const existing = new Map();
+  for (const el of summary.querySelectorAll(".stat")) existing.set(el.dataset.key, el);
+
   for (const s of stats) {
-    const el = document.createElement("div");
-    el.className = "stat";
-    el.dataset.key = s.key;
-    el.innerHTML = `<span class="value">${s.value}</span><span class="label">${s.label}</span>`;
-    summary.appendChild(el);
+    let el = existing.get(s.key);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "stat";
+      el.dataset.key = s.key;
+      el.innerHTML = `
+        <span class="value">${s.value}</span>
+        <span class="label">${s.label}</span>
+        <span class="orb" data-status="${STAT_ORB_STATUS[s.key] || "idle"}" aria-hidden="true"></span>
+      `;
+      summary.appendChild(el);
+    } else {
+      const valEl = el.querySelector(".value");
+      if (valEl && valEl.textContent !== String(s.value)) valEl.textContent = String(s.value);
+    }
   }
 }
 
@@ -112,6 +136,13 @@ function renderTimeline(timelineEl, tools, status) {
 function applyCard(node, session) {
   node.dataset.status = session.status;
   node.dataset.tty = session.tty || "";
+
+  const orb = node.querySelector(".orb");
+  if (orb) {
+    orb.dataset.status = session.status;
+    orb.setAttribute("aria-label", `status ${STATUS_LABEL[session.status] || session.status}`);
+  }
+
   node.querySelector(".status-label").textContent = STATUS_LABEL[session.status] || session.status;
   node.querySelector(".age").textContent = fmtAge(session.ageMs);
   node.querySelector(".title").textContent = fmtTitle(session);
