@@ -5,6 +5,7 @@
 // whose animation reflects the session's current status + last tool.
 
 import { subscribe } from "/store.js";
+import { play as playSound, isSoundOn as soundsIsOn, setSoundOn as soundsSetOn } from "/sounds.js";
 
 // ─── Workspace map ────────────────────────────────────────────────
 // Synced with ~/.config/claude-workspaces.zsh. Edit here if you add a
@@ -858,53 +859,13 @@ function detectTransitions(sessions) {
 
 function isAttentionStatus(s) { return s === "needs_input" || s === "needs_permission"; }
 
-// ─── Audio (Web Audio API, no asset) ────────────────────────────
-let audioCtx = null;
-let audioUnlocked = false;
-function ensureAudio() {
-  if (audioCtx) return audioCtx;
-  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
-  return audioCtx;
-}
-// Unlock audio on ANY first user gesture (browser autoplay policy).
-function unlockAudio() {
-  if (audioUnlocked) return;
-  const ctx = ensureAudio();
-  if (!ctx) return;
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  audioUnlocked = true;
-}
-["click", "keydown", "touchstart"].forEach((ev) =>
-  window.addEventListener(ev, unlockAudio, { once: false, passive: true })
-);
-function isSoundOn() {
-  try { return localStorage.getItem("tower:sound") !== "off"; } catch { return true; }
-}
-function setSoundOn(on) {
-  try { localStorage.setItem("tower:sound", on ? "on" : "off"); } catch {}
-  syncSoundToggle();
-}
+// ─── Audio — delegates to the unified sounds.js module ─────────
+function isSoundOn() { return soundsIsOn(); }
+function setSoundOn(on) { soundsSetOn(on); syncSoundToggle(); }
 function playBing(kind) {
-  if (!isSoundOn()) return;
-  const ctx = ensureAudio();
-  if (!ctx) return;
-  // resume in case it's been suspended (browser policy)
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  const now = ctx.currentTime;
-  // Two short tones — different pitch per kind (perm = lower/urgent, input = higher)
-  const tones = kind === "needs_permission" ? [880, 660] : [988, 1318];
-  for (let i = 0; i < tones.length; i++) {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "square"; // 8-bit feel
-    o.frequency.setValueAtTime(tones[i], now + i * 0.09);
-    g.gain.setValueAtTime(0.0001, now + i * 0.09);
-    g.gain.exponentialRampToValueAtTime(0.12, now + i * 0.09 + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.09 + 0.12);
-    o.connect(g).connect(ctx.destination);
-    o.start(now + i * 0.09);
-    o.stop(now + i * 0.09 + 0.14);
-  }
+  // Map legacy "needs_permission" / "needs_input" → unified sound names.
+  if (kind === "needs_permission") playSound("attention");
+  else playSound("approval-arrive");
 }
 
 // ─── Visual bursts (attached to a sprite, position-aware) ───────

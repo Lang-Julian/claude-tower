@@ -1,0 +1,310 @@
+/* ============================================================
+   Mission-control HUD — floating glass topbar.
+   Layered over the page (sticky), stronger shadow than cards.
+   ============================================================ */
+
+.hud {
+  position: sticky;
+  top: 12px;
+  z-index: var(--z-hud);
+  margin: 12px 16px 0;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--shadow-hud);
+
+  transition: border-color var(--dur-base) var(--ease),
+              box-shadow var(--dur-base) var(--ease);
+}
+
+.hud[data-scrolled="1"] {
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--shadow-hud),
+              0 0 0 1px var(--glass-border-strong),
+              0 0 24px -8px var(--accent-glow);
+}
+
+/* ─── Left: wordmark ─────────────────────────────────────── */
+.hud-brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding-left: 4px;
+}
+
+.hud-brand-mark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+  line-height: 1.05;
+}
+
+.hud-brand-mark::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  animation: hud-brand-pulse 2.4s var(--ease) infinite;
+}
+
+@keyframes hud-brand-pulse {
+  0%, 100% { box-shadow: 0 0 10px var(--accent-glow); }
+  50%      { box-shadow: 0 0 22px var(--accent-glow); }
+}
+
+.hud-brand-sub {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--text-2);
+  text-transform: uppercase;
+  margin-top: 2px;
+  padding-left: 16px;
+}
+
+/* ─── Center: live orbital stats ─────────────────────────── */
+.hud-orbits {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hud-orb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: var(--r-pill);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+  transition: opacity var(--dur-base) var(--ease),
+              border-color var(--dur-base) var(--ease),
+              transform var(--dur-base) var(--ease-spring),
+              color var(--dur-base) var(--ease);
+}
+
+.hud-orb-pill[data-count="0"] { opacity: 0.45; }
+.hud-orb-pill[data-count="0"] .orb { animation: none !important; opacity: 0.55; }
+
+.hud-orb-pill .orb { width: 8px; height: 8px; }
+.hud-orb-pill .hud-count {
+  color: var(--text-1);
+  font-weight: 600;
+  min-width: 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.hud-orb-pill .hud-label {
+  color: var(--text-2);
+  text-transform: lowercase;
+}
+
+.hud-orb-pill[data-key="permission"]:not([data-count="0"]) {
+  border-color: rgba(255, 90, 95, 0.35);
+  color: var(--status-permission);
+}
+.hud-orb-pill[data-key="waiting"]:not([data-count="0"]) {
+  border-color: rgba(255, 184, 77, 0.30);
+  color: var(--status-input);
+}
+.hud-orb-pill[data-key="thinking"]:not([data-count="0"]) {
+  border-color: rgba(0, 212, 255, 0.30);
+  color: var(--status-thinking);
+}
+.hud-orb-pill[data-key="active"]:not([data-count="0"]) {
+  border-color: rgba(46, 204, 113, 0.30);
+  color: var(--status-active);
+}
+
+/* ─── Right: meta / controls ─────────────────────────────── */
+.hud-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Segmented view toggle */
+.hud-seg {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-pill);
+  gap: 2px;
+}
+.hud-seg button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease);
+}
+.hud-seg button[aria-pressed="true"] {
+  background: var(--glass-fill-strong);
+  color: var(--text-1);
+  box-shadow: 0 0 0 1px var(--glass-border-strong),
+              0 0 12px -4px var(--accent-glow);
+}
+.hud-seg button:hover { color: var(--text-1); }
+
+/* HUD pill variants (override legacy .pill colors to use new tokens) */
+.hud .pill {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  letter-spacing: 0.02em;
+}
+.hud .pill.pill-live {
+  color: var(--status-active);
+  border-color: rgba(46, 204, 113, 0.32);
+}
+.hud .pill.pill-live::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-active);
+  box-shadow: 0 0 8px var(--status-active);
+  margin-right: 6px;
+}
+.hud .pill.pill-muted { color: var(--text-2); opacity: 0.85; }
+
+.hud .cost-pill-top {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.hud .cost-pill-top[data-hot="1"] {
+  color: var(--status-input);
+  border-color: rgba(255, 184, 77, 0.35);
+}
+
+/* Telegram toggle — restyled */
+.hud-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border-radius: var(--r-pill);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+.hud-toggle:hover { color: var(--text-1); border-color: var(--glass-border-strong); }
+.hud-toggle input {
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+}
+.hud-toggle:has(input:checked) { color: var(--text-1); }
+
+/* Icon buttons (sound, palette) */
+.hud-icon-btn {
+  appearance: none;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill);
+  color: var(--text-1);
+  border-radius: var(--r-pill);
+  width: 32px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease),
+              transform 80ms var(--ease-spring);
+}
+.hud-icon-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-strong);
+}
+.hud-icon-btn:active { transform: scale(0.94); }
+.hud-icon-btn[aria-pressed="false"] { opacity: 0.5; }
+
+.hud-cmd-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 0 10px;
+  width: auto;
+  gap: 6px;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+}
+.hud-cmd-btn:hover { color: var(--text-1); }
+.hud-cmd-btn kbd {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  padding: 0 5px;
+  font-size: 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+}
+
+/* Updated timestamp - tertiary, smaller */
+.hud #updated {
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+
+/* Responsive: collapse left tagline + center wrap */
+@media (max-width: 1100px) {
+  .hud { grid-template-columns: auto 1fr auto; }
+  .hud-brand-sub { display: none; }
+}
+@media (max-width: 760px) {
+  .hud {
+    grid-template-columns: 1fr;
+    grid-auto-flow: row;
+  }
+  .hud-meta { justify-content: flex-start; }
+  .hud-orbits { justify-content: flex-start; }
+}
+
+/* Hide legacy topbar if it still renders anywhere */
+header.topbar { display: none !important; }

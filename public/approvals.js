@@ -5,6 +5,7 @@
 // EventSource on /api/events (cheap; native HTTP/1.1 keep-alive shares a connection).
 
 import { subscribe } from "/store.js";
+import { play } from "/sounds.js";
 
 const pendingById = new Map();    // approval.id → approval row
 const bySessionId = new Map();    // session_id → Set<approval.id>
@@ -156,42 +157,8 @@ async function decide(cardEl, action) {
   }
 }
 
-// ─── Sound: short alert for new approvals (Web Audio API) ─────────
-let audioCtx = null;
-function ensureAudio() {
-  if (audioCtx) return audioCtx;
-  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
-  return audioCtx;
-}
-window.addEventListener("click", () => {
-  const c = ensureAudio();
-  if (c && c.state === "suspended") c.resume().catch(() => {});
-}, { passive: true, once: false });
-
-function isSoundOn() {
-  try { return localStorage.getItem("tower:sound") !== "off"; } catch { return true; }
-}
-function playApprovalAlert() {
-  if (document.hidden) return;
-  if (!isSoundOn()) return;
-  const ctx = ensureAudio();
-  if (!ctx) return;
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  const now = ctx.currentTime;
-  const tones = [988, 1318, 1568]; // C#6 E6 G6 — alert chord
-  for (let i = 0; i < tones.length; i++) {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "square";
-    o.frequency.setValueAtTime(tones[i], now + i * 0.07);
-    g.gain.setValueAtTime(0.0001, now + i * 0.07);
-    g.gain.exponentialRampToValueAtTime(0.14, now + i * 0.07 + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.07 + 0.16);
-    o.connect(g).connect(ctx.destination);
-    o.start(now + i * 0.07);
-    o.stop(now + i * 0.07 + 0.18);
-  }
-}
+// ─── Sound: short alert for new approvals (delegates to sounds.js) ──
+function playApprovalAlert() { play("approval-arrive"); }
 
 // ─── Keyboard: a = approve focused card, d = deny ─────────────────
 let focusedCard = null;
