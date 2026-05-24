@@ -1,11 +1,19 @@
-// Token + cost overlay. Adds:
-//   • a topbar pill with "today / burn-rate"
-//   • per-card cost pill + 60min sparkline (Braille-encoded, 12 bins)
+// Token usage overlay. Adds:
+//   • a topbar pill with "tokens today · tokens/h" (or USD if --show-usd)
+//   • per-card token pill + 60min sparkline (Braille-encoded, 12 bins)
 //   • hover-to-expand breakdown popover
+//
+// Default behavior shows tokens because most Claude Code users are on
+// Max/Pro flat-fee plans where dollar costs are misleading. Set the
+// `tower:show-usd` localStorage flag (or boot with --show-usd) to opt in.
 //
 // Talks to /api/usage every 30s. The endpoint is fast (<10ms warm).
 
 const POLL_MS = 30_000;
+const SHOW_USD = (() => {
+  try { return localStorage.getItem("tower:show-usd") === "1"; }
+  catch { return false; }
+})();
 
 const BRAILLE_LEVELS = [
   // 8 visual levels — empty, 1/8, 2/8 ... full
@@ -50,7 +58,9 @@ function ensureTopbarPill() {
   pill = document.createElement("span");
   pill.id = "costPill";
   pill.className = "pill cost-pill cost-pill-top";
-  pill.title = "Token cost today · burn-rate over the last 60min";
+  pill.title = SHOW_USD
+    ? "USD cost today · burn-rate over the last 60min (API plan)"
+    : "Tokens today · tokens/h over the last 60min (Max/Pro plan — set tower:show-usd=1 in localStorage for USD)";
   pill.textContent = "—";
   meta.insertBefore(pill, meta.firstChild);
   return pill;
@@ -59,10 +69,19 @@ function ensureTopbarPill() {
 function updateTopbar(data) {
   const pill = ensureTopbarPill();
   if (!pill) return;
-  const today = data.today?.costUsd || 0;
-  const burn = data.burnRateUsdPerHour || 0;
-  pill.textContent = `${fmtUsd(today)} today · ${fmtUsd(burn)}/h`;
-  pill.dataset.hot = burn > 50 ? "1" : "0";
+  if (SHOW_USD) {
+    const today = data.today?.costUsd || 0;
+    const burn = data.burnRateUsdPerHour || 0;
+    pill.textContent = `${fmtUsd(today)} today · ${fmtUsd(burn)}/h`;
+    pill.dataset.hot = burn > 50 ? "1" : "0";
+  } else {
+    const today = data.today?.tokens || 0;
+    // Burn rate per hour from last-60min sum. data.recentTokensPerHour falls
+    // back to 60× the last-60min totalTokens if backend doesn't expose it.
+    const burn = data.recentTokensPerHour ?? 0;
+    pill.textContent = `${fmtTokens(today)} today · ${fmtTokens(burn)}/h`;
+    pill.dataset.hot = burn > 2_000_000 ? "1" : "0";
+  }
 }
 
 // Returns the index of the meta-row inside a card. Cards are template-based,
@@ -85,7 +104,7 @@ function ensureCardCostUi(card, session) {
     metaRow.appendChild(spark);
   }
 
-  pill.textContent = fmtUsd(session.totalCostUsd);
+  pill.textContent = SHOW_USD ? fmtUsd(session.totalCostUsd) : fmtTokens(session.totalTokens);
   spark.textContent = sparkBraille(session.spark);
   spark.title = "Token-Aktivität letzte 60min (12 × 5min Buckets)";
   // Stash detail for hover.

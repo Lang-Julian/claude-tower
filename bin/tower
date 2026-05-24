@@ -379,8 +379,20 @@ async function cmdStatus() {
     lines.push(`  pending    ${pendingCount > 0 ? c.yellow(pendingCount) : pendingCount}`);
     const usage = await safeGet(port, "/api/usage");
     if (usage?.body) {
-      const cost = usage.body.totalCostUsd ?? usage.body.totalCost ?? 0;
-      lines.push(`  cost (∑)   $${Number(cost).toFixed(2)}`);
+      const showUsd = process.env.TOWER_SHOW_USD === "1" || process.argv.includes("--show-usd");
+      if (showUsd) {
+        const cost = usage.body.totalCostUsd ?? 0;
+        lines.push(`  cost (∑)   $${Number(cost).toFixed(2)}`);
+      } else {
+        const tokens = usage.body.totalTokens ?? 0;
+        const today = usage.body.today?.tokens ?? 0;
+        const fmt = (n) => n >= 1e9 ? `${(n / 1e9).toFixed(1)}B`
+                        : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M`
+                        : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k`
+                        : String(n);
+        lines.push(`  tokens ∑   ${fmt(tokens)}`);
+        lines.push(`  tokens 24h ${fmt(today)}`);
+      }
     }
     // Telegram status — best-effort. The endpoint doesn't expose GET, so just hint.
     lines.push(`  telegram   ${c.dim("see logs")}`);
