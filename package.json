@@ -1,6 +1,6 @@
 {
   "name": "claude-tower",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Air-traffic control for your Claude Code swarm. See every session, approve permissions remotely, track cost — all on localhost.",
   "type": "module",
   "main": "server.js",
