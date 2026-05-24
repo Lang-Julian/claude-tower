@@ -88,9 +88,17 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6) var(--space-7);
+}
+
+/* Wider screens — give cards more breathing room */
+@media (min-width: 1600px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: var(--space-5);
+  }
 }
 
 /* ============================================================
@@ -121,15 +129,36 @@
   isolation: isolate;
 }
 
+/* subtle top-edge rim highlight — visible on hover, hints at glass material */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: linear-gradient(90deg, transparent 0%, var(--glass-fill-strong) 50%, transparent 100%);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease);
+  pointer-events: none;
+}
+
 .card:hover {
   background: var(--glass-fill-hover);
   border-color: var(--glass-border-strong);
   transform: translateY(-2px);
 }
 
+.card:hover::before { opacity: 1; }
+
+.card:active {
+  transform: translateY(-1px) scale(0.995);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+
 .card:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus), var(--shadow-card);
+  border-color: var(--glass-border-focus);
 }
 
 /* ── Header row: orb, status label, age ───────────────────── */
@@ -141,6 +170,29 @@
   font-size: 11px;
   color: var(--text-2);
   min-height: 14px;
+}
+
+/* Larger orb inside cards, with a soft static halo glow */
+.card > header .orb {
+  width: 12px;
+  height: 12px;
+}
+
+.card > header .orb::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: inherit;
+  filter: blur(6px);
+  opacity: 0.55;
+  z-index: -1;
+}
+
+.card > header .orb[data-status="idle"]::after,
+.card > header .orb[data-status="stopped"]::after,
+.card > header .orb[data-status="archived"]::after {
+  opacity: 0.15;
 }
 
 .card .status-label {
@@ -193,6 +245,35 @@
 }
 
 .card .prompt:empty { display: none; }
+
+/* Short-prompt collapse: rendered as a chip-like inline tag right under the
+   title — saves vertical space when the user typed only "weiter" / "mach". */
+.card .prompt.is-short {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 2px 8px;
+  margin-top: calc(var(--space-1) * -1);
+  border-radius: var(--r-pill);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  font-size: 11px;
+  font-style: normal;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.card .prompt.is-short::before {
+  content: "›";
+  margin-right: 4px;
+  opacity: 0.5;
+}
 
 /* ── Timeline strip ───────────────────────────────────────── */
 
@@ -273,6 +354,12 @@
   min-height: 16px;
 }
 
+/* Hide the whole row when neither the Braille text nor the SVG has been
+   rendered yet — avoids reserving 16px for nothing. */
+.spark-row:not(:has(.sparkline:not(:empty))):not(:has(.spark-svg-on)) {
+  display: none;
+}
+
 .sparkline {
   font-family: var(--font-mono);
   font-size: 14px;
@@ -286,14 +373,45 @@
   overflow: hidden;
 }
 
-.sparkline:empty { display: none; }
+.sparkline:empty,
+.sparkline.sparkline-hidden { display: none; }
 
-/* SVG placeholder for v0.2 — currently hidden, kept for usage.js evolution */
+/* SVG sparkline — 12 bars, gradient fill, last bar with halo dot.
+   Color is inherited from the card status (set via currentColor on bars). */
 .spark-svg {
   display: none;
-  width: 60px;
+  width: 72px;
   height: 16px;
   flex-shrink: 0;
+  color: var(--accent-2);
+}
+.spark-svg.spark-svg-on { display: block; }
+
+.card[data-status="thinking"]        .spark-svg { color: var(--status-thinking); }
+.card[data-status="needs_input"]     .spark-svg { color: var(--status-input); }
+.card[data-status="needs_permission"].spark-svg { color: var(--status-permission); }
+.card[data-status="running"]         .spark-svg { color: var(--status-active); }
+.card[data-status="idle"]            .spark-svg { color: var(--text-3); }
+.card[data-status="stopped"]         .spark-svg,
+.card[data-status="archived"]        .spark-svg { color: var(--text-mute); }
+
+.spark-svg .spark-bar {
+  fill: currentColor;
+  opacity: 0.55;
+}
+.spark-svg .spark-bar.last {
+  opacity: 1;
+}
+.spark-svg .spark-dot {
+  fill: currentColor;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+.card[data-status="thinking"] .spark-svg .spark-dot {
+  animation: spark-dot-pulse 1.4s var(--ease) infinite;
+}
+@keyframes spark-dot-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
 }
 
 /* ── Meta row — pills at the bottom ───────────────────────── */
@@ -302,7 +420,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
   margin-top: auto;
 }
 
@@ -368,6 +486,37 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Token-mode (Claude Max plan default): indigo accent instead of cyan,
+   plus a small token glyph as a marker. */
+.card .cost-pill[data-mode="tokens"] {
+  color: var(--accent);
+  border-color: rgba(110, 123, 255, 0.30);
+  background: rgba(110, 123, 255, 0.07);
+}
+
+.card .cost-pill[data-mode="tokens"]::before {
+  content: "◇";
+  margin-right: 3px;
+  opacity: 0.7;
+}
+
+/* High burn — >100M tokens for this session gets a soft pulsing glow */
+.card .cost-pill[data-mode="tokens"][data-hot="1"] {
+  border-color: rgba(110, 123, 255, 0.55);
+  color: var(--accent-hover);
+  animation: token-hot 1.8s var(--ease) infinite;
+}
+
+.card .cost-pill[data-mode="tokens"][data-hot="1"]::before {
+  content: "⚡";
+  opacity: 1;
+}
+
+@keyframes token-hot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(110, 123, 255, 0); }
+  50%      { box-shadow: 0 0 8px 0 rgba(110, 123, 255, 0.45); }
+}
+
 /* The legacy footer slot becomes part of meta-row visually */
 .card > footer {
   display: contents;
@@ -378,13 +527,29 @@
    ============================================================ */
 
 .card[data-status="needs_permission"] {
-  border-color: rgba(255, 90, 95, 0.5);
-  box-shadow:
-    0 0 0 1px rgba(255, 90, 95, 0.25),
-    0 0 28px -4px rgba(255, 90, 95, 0.35),
-    var(--shadow-card);
+  border-color: rgba(255, 90, 95, 0.55);
+  animation: card-permission-pulse 2s var(--ease) infinite;
 }
 .card[data-status="needs_permission"] .status-label { color: var(--status-permission); }
+
+@keyframes card-permission-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 90, 95, 0.25),
+      0 0 22px -6px rgba(255, 90, 95, 0.30),
+      var(--shadow-card);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 90, 95, 0.45),
+      0 0 36px -2px rgba(255, 90, 95, 0.55),
+      var(--shadow-card);
+  }
+}
+
+.card[data-status="needs_permission"]:hover {
+  border-color: rgba(255, 90, 95, 0.75);
+}
 
 .card[data-status="needs_input"] {
   border-color: rgba(255, 184, 77, 0.4);
@@ -490,6 +655,10 @@
 .approval-bar .pixel-btn {
   flex: 1;
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--glass-border-strong);
   background: transparent;
   color: var(--text-1);
@@ -507,6 +676,20 @@
     box-shadow var(--dur-fast) var(--ease),
     transform var(--dur-fast) var(--ease-spring),
     color var(--dur-fast) var(--ease);
+}
+
+/* Wrap the ✅ / ❌ glyph so it lives in a consistent fallback font */
+.approval-bar .pixel-btn .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .approval-bar .pixel-btn:disabled {
@@ -682,10 +865,13 @@
   .summary, .grid { padding-left: var(--space-4); padding-right: var(--space-4); }
 }
 
+@media (max-width: 700px) {
+  .grid { grid-template-columns: 1fr; gap: var(--space-3); }
+}
+
 @media (max-width: 560px) {
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .summary .stat .value { font-size: 22px; }
-  .grid { grid-template-columns: 1fr; gap: var(--space-3); }
   .card { padding: var(--space-3); }
 }
 
@@ -694,7 +880,10 @@
    ============================================================ */
 
 @media (prefers-reduced-motion: reduce) {
-  .card[data-status="thinking"] { animation: none; }
+  .card[data-status="thinking"],
+  .card[data-status="needs_permission"] { animation: none; }
   .approval-bar { animation: none; }
-  .timeline .seg.last { animation: none; }
+  .timeline .seg.last,
+  .spark-svg .spark-dot,
+  .card .cost-pill[data-hot="1"] { animation: none; }
 }

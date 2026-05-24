@@ -66,8 +66,8 @@ function ensureApprovalUI(cardEl) {
       <span class="approval-summary"></span>
     </div>
     <div class="approval-actions">
-      <button type="button" class="pixel-btn approve-btn" data-action="approve" title="Approve (a)">✅ Approve</button>
-      <button type="button" class="pixel-btn deny-btn"    data-action="deny"    title="Deny (d)">❌ Deny</button>
+      <button type="button" class="pixel-btn approve-btn" data-action="approve" title="Approve (a)"><span class="btn-icon" aria-hidden="true">✅</span><span>Approve</span></button>
+      <button type="button" class="pixel-btn deny-btn"    data-action="deny"    title="Deny (d)"><span class="btn-icon" aria-hidden="true">❌</span><span>Deny</span></button>
     </div>
     <div class="approval-status" aria-live="polite"></div>
   `;
@@ -171,6 +171,10 @@ function playApprovalAlert() { play("approval-arrive"); }
 let focusedCard = null;
 window.addEventListener("mouseover", (e) => {
   const card = e.target.closest(".card");
+  if (card) focusedCard = card;
+});
+window.addEventListener("focusin", (e) => {
+  const card = e.target.closest?.(".card");
   if (card) focusedCard = card;
 });
 window.addEventListener("keydown", (e) => {
