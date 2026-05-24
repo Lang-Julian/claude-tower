@@ -6,6 +6,8 @@
 
 import { subscribe } from "/store.js";
 import { play } from "/sounds.js";
+import { announce, announceUrgent } from "/a11y.js";
+import { toast } from "/toast.js";
 
 const pendingById = new Map();    // approval.id → approval row
 const bySessionId = new Map();    // session_id → Set<approval.id>
@@ -138,19 +140,24 @@ async function decide(cardEl, action) {
       const who = json.approval?.decided_by || "?";
       const dec = json.approval?.decision || "?";
       statusEl.textContent = `bereits ${dec} via ${who}`;
+      toast(`Already ${dec} via ${who}`, { type: "info" });
     } else if (!res.ok || !json.ok) {
-      statusEl.textContent = `Fehler: ${json.error || res.status}`;
+      const msg = json.error || `HTTP ${res.status}`;
+      statusEl.textContent = `Fehler: ${msg}`;
+      toast(`Approval failed: ${msg}`, { type: "error" });
       bar.querySelectorAll("button").forEach((b) => (b.disabled = false));
       delete bar.dataset.deciding;
       return;
     } else {
       statusEl.textContent = action === "approve" ? "✅ Approved" : "❌ Denied";
+      announce(action === "approve" ? "Approved" : "Denied");
     }
     // Local optimistic prune — SSE broadcast will also fire and is idempotent.
     dropPending(id);
     setTimeout(() => paintCard(cardEl), 400);
   } catch (e) {
     statusEl.textContent = `Netzwerkfehler`;
+    toast("Network error — could not reach server", { type: "error" });
     bar.querySelectorAll("button").forEach((b) => (b.disabled = false));
     delete bar.dataset.deciding;
     console.warn("decide failed", e);
@@ -197,7 +204,11 @@ function connectApprovals() {
         const existed = pendingById.has(data.approval.id);
         indexPending(data.approval);
         paintAllCards();
-        if (!existed) playApprovalAlert();
+        if (!existed) {
+          playApprovalAlert();
+          const tool = data.approval.tool_name || "tool";
+          announceUrgent(`Session needs permission for ${tool}`);
+        }
       } else if (data.type === "approval-decided" && data.id) {
         dropPending(data.id);
         paintAllCards();
