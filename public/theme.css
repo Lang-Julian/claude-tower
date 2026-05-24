@@ -1,0 +1,256 @@
+/* ============================================================
+   claude-tower — design system
+   "What if Jony Ive designed Destiny's HUD."
+   See docs/DESIGN.md for the why.
+   ============================================================ */
+
+:root {
+  /* surface */
+  --bg-0: #06070d;
+  --bg-1: #0a0c14;
+  --bg-2: #10131f;
+  --bg-3: #161a2a;
+
+  /* glass */
+  --glass-fill: rgba(255, 255, 255, 0.04);
+  --glass-fill-hover: rgba(255, 255, 255, 0.07);
+  --glass-fill-strong: rgba(255, 255, 255, 0.10);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.14);
+  --glass-border-focus: rgba(110, 123, 255, 0.55);
+
+  /* text */
+  --text-1: #f5f6fa;
+  --text-2: #9ba1b3;
+  --text-3: #5a6075;
+  --text-mute: #3f4458;
+
+  /* accent */
+  --accent: #6e7bff;
+  --accent-hover: #8a95ff;
+  --accent-2: #00d4ff;
+  --accent-glow: rgba(110, 123, 255, 0.45);
+
+  /* status */
+  --status-thinking: #00d4ff;
+  --status-input: #ffb84d;
+  --status-permission: #ff5a5f;
+  --status-active: #2ecc71;
+  --status-idle: #6b7080;
+  --status-stopped: #3a3f52;
+
+  /* radii */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* shadows */
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
+                 0 10px 30px -12px rgba(0, 0, 0, 0.6),
+                 0 2px 6px -2px rgba(0, 0, 0, 0.45);
+  --shadow-hud:  0 1px 0 rgba(255, 255, 255, 0.06) inset,
+                 0 20px 60px -20px rgba(0, 0, 0, 0.8),
+                 0 4px 12px -4px rgba(0, 0, 0, 0.6);
+  --shadow-focus: 0 0 0 2px var(--accent-glow);
+  --shadow-pulse-thinking:   0 0 0 0 rgba(0, 212, 255, 0.6);
+  --shadow-pulse-input:      0 0 0 0 rgba(255, 184, 77, 0.6);
+  --shadow-pulse-permission: 0 0 0 0 rgba(255, 90, 95, 0.6);
+
+  /* motion */
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-decel: cubic-bezier(0, 0, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+
+  /* layering */
+  --z-base: 0;
+  --z-card: 1;
+  --z-floating: 5;
+  --z-hud: 10;
+  --z-modal: 100;
+  --z-toast: 1000;
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* typography */
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-pixel: "Press Start 2P", monospace;
+}
+
+/* ============================================================
+   base
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(110, 123, 255, 0.10), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(0, 212, 255, 0.06), transparent 60%),
+    linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
+  background-attachment: fixed;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "cv11", "ss01", "ss02";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+code, kbd {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+kbd {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--r-sm);
+}
+
+::selection { background: var(--accent-glow); color: var(--text-1); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--glass-fill-strong);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--glass-border-strong); background-clip: padding-box; }
+
+/* ============================================================
+   utilities
+   ============================================================ */
+
+.glass {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: var(--r-lg);
+}
+
+.glass-strong {
+  background: var(--glass-fill-strong);
+  border: 1px solid var(--glass-border-strong);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border-radius: var(--r-lg);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* status orb — colored disc with animated halo when active */
+.orb {
+  position: relative;
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--status-idle);
+  flex-shrink: 0;
+}
+.orb::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0;
+  filter: blur(6px);
+}
+.orb[data-status="thinking"]    { background: var(--status-thinking);   animation: pulse-thinking   1.6s var(--ease) infinite; }
+.orb[data-status="needs_input"] { background: var(--status-input);      animation: pulse-input      1.8s var(--ease) infinite; }
+.orb[data-status="needs_permission"] { background: var(--status-permission); animation: pulse-permission 1.2s var(--ease) infinite; }
+.orb[data-status="running"]     { background: var(--status-active); }
+.orb[data-status="idle"]        { background: var(--status-idle); opacity: 0.7; }
+.orb[data-status="stopped"]     { background: var(--status-stopped); opacity: 0.5; }
+.orb[data-status="archived"]    { background: var(--status-stopped); opacity: 0.3; }
+
+@keyframes pulse-thinking {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.55); }
+  70%  { box-shadow: 0 0 0 10px rgba(0, 212, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); }
+}
+@keyframes pulse-input {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 184, 77, 0.55); }
+  70%  { box-shadow: 0 0 0 10px rgba(255, 184, 77, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 184, 77, 0); }
+}
+@keyframes pulse-permission {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 90, 95, 0.7); }
+  60%  { box-shadow: 0 0 0 14px rgba(255, 90, 95, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 90, 95, 0); }
+}
+
+/* prefer-reduced-motion respects */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
