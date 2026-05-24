@@ -159,6 +159,9 @@ input:focus-visible,
 
 ::selection { background: var(--accent-glow); color: var(--text-1); }
 
+/* Firefox: thin tinted scrollbar (no ::-webkit-scrollbar support). */
+html { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.14) transparent; }
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {

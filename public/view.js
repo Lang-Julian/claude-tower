@@ -15,7 +15,18 @@ function apply(view) {
   window.dispatchEvent(new CustomEvent(`view:${view}`));
 }
 
-apply(read(KEY) === "cards" ? "cards" : "town");
+// Narrow viewport (e.g. iPhone over LAN with --mobile): the town view
+// scales sprite art poorly under ~600px. Auto-switch to cards. We don't
+// persist this — once the window grows again, the user's saved choice wins.
+const NARROW_MQ = window.matchMedia("(max-width: 600px)");
+const stored = read(KEY) === "cards" ? "cards" : "town";
+const initial = NARROW_MQ.matches ? "cards" : stored;
+apply(initial);
+// On narrow viewports, swallow attempts to set "town" so the manual toggle
+// also routes to cards. Save the user's intent without persisting.
+NARROW_MQ.addEventListener?.("change", (e) => {
+  if (e.matches && body.dataset.view === "town") apply("cards");
+});
 
 btnTown.addEventListener("click", () => apply("town"));
 btnCards.addEventListener("click", () => apply("cards"));
