@@ -231,8 +231,9 @@ async function cmdStart(args) {
     return;
   }
 
-  // Clean stale pid
+  // Clean stale pid + port file so the hook handler doesn't talk to a ghost.
   try { await fs.unlink(PID_FILE); } catch {}
+  try { await fs.unlink(PORT_FILE); } catch {}
 
   const port = Number(optValue(args, "--port", DEFAULT_PORT)) || DEFAULT_PORT;
   const mobile = flag(args, "--mobile");
@@ -324,8 +325,17 @@ async function cmdStop() {
 
 async function cmdRestart() {
   let saved = {};
-  try { saved = JSON.parse(await fs.readFile(LAST_ARGS_FILE, "utf8")); }
-  catch { /* no saved args, use defaults */ }
+  try {
+    const raw = await fs.readFile(LAST_ARGS_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") saved = parsed;
+  } catch (e) {
+    // Missing or malformed → fall back to defaults silently. The user can
+    // re-supply flags via `tower start ...`.
+    if (e.code !== "ENOENT") {
+      console.error(c.dim("(could not read saved flags, using defaults: ") + (e.message || e) + c.dim(")"));
+    }
+  }
   await cmdStop();
   await sleep(200);
   const args = [];

@@ -13,7 +13,7 @@ import { snapshot } from "./lib/sessions.js";
 import { processIndex } from "./lib/processes.js";
 import { focusTty } from "./lib/iterm.js";
 import { Notifier } from "./lib/notifier.js";
-import { getDb } from "./lib/db.js";
+import { getDb, closeDb } from "./lib/db.js";
 import { mountHooks } from "./lib/hooks/routes.js";
 import { mountApprovals } from "./lib/approvals.js";
 import { mountUsage } from "./lib/usage.js";
@@ -66,18 +66,31 @@ app.route("GET", "/api/events", ({ req, res }) => {
     "Connection": "keep-alive",
     "X-Accel-Buffering": "no",
   });
-  res.write(`data: ${JSON.stringify({ type: "snapshot", ...latest })}\n\n`);
+  try { res.write(`data: ${JSON.stringify({ type: "snapshot", ...latest })}\n\n`); }
+  catch { return; }
   const remove = app.addSseClient(res);
+  // Ensure cleanup on any termination path. `close` fires on client disconnect,
+  // `error` if the socket explodes — both must drop the SSE reference.
   req.on("close", remove);
+  req.on("error", remove);
+  res.on("error", remove);
 });
+
+// Strict tty allowlist — only macOS pty paths. Rejects anything that would
+// break the AppleScript string interpolation (quotes, backslashes, newlines).
+const TTY_RE = /^(?:\/dev\/)?tty[a-z0-9]+$/i;
 
 app.route("POST", "/api/focus", async ({ res, body }) => {
   try {
     const data = JSON.parse((await body()) || "{}");
+    if (!data.tty || !TTY_RE.test(String(data.tty))) {
+      return sendJson(res, 400, { ok: false, error: "invalid tty" });
+    }
     const result = await focusTty(data.tty);
     sendJson(res, 200, result);
   } catch (e) {
-    sendJson(res, 400, { ok: false, error: String(e) });
+    console.error("[POST /api/focus]", e);
+    sendJson(res, 400, { ok: false, error: "bad request" });
   }
 });
 
@@ -87,7 +100,8 @@ app.route("POST", "/api/notifier", async ({ res, body }) => {
     notifier.enabled = Boolean(data.enabled);
     sendJson(res, 200, { enabled: notifier.enabled });
   } catch (e) {
-    sendJson(res, 400, { ok: false, error: String(e) });
+    console.error("[POST /api/notifier]", e);
+    sendJson(res, 400, { ok: false, error: "bad request" });
   }
 });
 
@@ -140,5 +154,14 @@ server.listen(PORT, BIND, async () => {
   }
 });
 
-process.on("SIGINT", () => { console.log("\nbye."); process.exit(0); });
-process.on("SIGTERM", () => process.exit(0));
+let shuttingDown = false;
+function shutdown(code = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  try { notifier.stopPolling?.(); } catch {}
+  try { server.close(); } catch {}
+  try { closeDb(); } catch {}
+  process.exit(code);
+}
+process.on("SIGINT", () => { console.log("\nbye."); shutdown(0); });
+process.on("SIGTERM", () => shutdown(0));
