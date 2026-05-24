@@ -516,18 +516,20 @@ function showBubble(spriteEl, skipReposition = false) {
   const bub = ensureBubble();
   bub.dataset.spriteId = spriteEl.dataset.id || "";
   const data = JSON.parse(spriteEl.dataset.sessionData);
-  const prompt = data.prompt ? (data.prompt.length > 220 ? data.prompt.slice(0, 220) + "…" : data.prompt) : null;
+  const prompt = data.prompt ? (data.prompt.length > 240 ? data.prompt.slice(0, 240) + "…" : data.prompt) : null;
+  const rawStatus = spriteEl.dataset.status || "idle";
   bub.innerHTML = `
     <div class="bub-head">
+      <span class="orb bub-orb" data-status="${escapeHtml(rawStatus)}" aria-hidden="true"></span>
       <span class="bub-ws">${escapeHtml(data.ws)}</span>
       <span class="bub-status">${escapeHtml(data.status)}</span>
       <span class="bub-age">${fmtAgeShort(data.age)}</span>
     </div>
     ${data.title ? `<div class="bub-title">${escapeHtml(data.title)}</div>` : ""}
-    ${prompt ? `<div class="bub-prompt">❝ ${escapeHtml(prompt)}</div>` : ""}
+    ${prompt ? `<div class="bub-prompt">${escapeHtml(prompt)}</div>` : ""}
     <div class="bub-foot">
-      ${data.tool ? `<span class="bub-tool">⚙ ${escapeHtml(data.tool)}</span>` : ""}
-      ${data.branch ? `<span class="bub-branch">⎇ ${escapeHtml(data.branch)}</span>` : ""}
+      ${data.tool ? `<span class="bub-tool">${escapeHtml(data.tool)}</span>` : ""}
+      ${data.branch ? `<span class="bub-branch">${escapeHtml(data.branch)}</span>` : ""}
       ${data.pid ? `<span class="bub-pid">pid ${data.pid}</span>` : ""}
     </div>
     <div class="bub-hint">click → focus iTerm tab</div>
@@ -687,6 +689,10 @@ function renderTown(sessions) {
     entry.countEl.textContent = sessions.length;
     entry.countEl.dataset.count = sessions.length;
     entry.room.dataset.attention = sessions.some(needsAttention) ? "1" : "0";
+    // Apply team-color hairline based on workspace shirt
+    const [teamShirt, teamShirtDark] = shirtFor(ws.key);
+    entry.room.style.setProperty("--team", teamShirt);
+    entry.room.style.setProperty("--team-2", teamShirtDark);
     townEl.appendChild(entry.room);
   }
   // Hide rooms that lost all their sessions
@@ -758,9 +764,9 @@ function ensureHudStats() {
     hudEl.appendChild(el);
     return el;
   };
-  hudStatEls.thinking = mk("hud-thinking", "thinking");
+  hudStatEls.thinking = mk("hud-thinking", "active");
   hudStatEls.waiting  = mk("hud-waiting",  "waiting");
-  hudStatEls.perm     = mk("hud-perm",     "perm");
+  hudStatEls.perm     = mk("hud-perm",     "permission");
   hudStatEls.idle     = mk("hud-idle",     "idle");
   hudStatEls.stopped  = mk("hud-stopped",  "stopped");
 }
@@ -769,13 +775,20 @@ function renderQuests(sessions) {
   const attention = sessions.filter(needsAttention)
     .sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status]);
   if (!attention.length) {
-    questsEl.innerHTML = `<div class="quest-empty">⚔ Alle Agents arbeiten ruhig. Keine Quests.</div>`;
+    questsEl.innerHTML = `
+      <div class="quest-empty">
+        <span class="quest-empty-glyph" aria-hidden="true">◎</span>
+        Alle Agents arbeiten ruhig.<br/>Keine offenen Quests.
+      </div>`;
     return;
   }
   questsEl.innerHTML = "";
   const head = document.createElement("div");
   head.className = "quest-head";
-  head.textContent = `⚔ Quest Log — ${attention.length} brauchen dich`;
+  head.innerHTML = `
+    <span>Quest Log</span>
+    <span class="quest-head-count">${attention.length} need you</span>
+  `;
   questsEl.appendChild(head);
 
   for (const s of attention) {
@@ -784,13 +797,20 @@ function renderQuests(sessions) {
     item.type = "button";
     item.className = `quest quest-${s.status}`;
     item.dataset.tty = s.tty || "";
-    const label = s.title || (s.lastPrompt ? s.lastPrompt.slice(0, 80) : s.id.slice(0, 8));
+    item.dataset.sessionId = s.id;
+    const label = s.lastPrompt || s.title || s.id.slice(0, 12);
+    const trimmed = label.length > 140 ? label.slice(0, 140) + "…" : label;
     item.innerHTML = `
-      <span class="quest-icon">${s.status === "needs_permission" ? "🔴" : "🟡"}</span>
-      <span class="quest-ws">${ws.label}</span>
-      <span class="quest-label">${escapeHtml(label)}</span>
-      <span class="quest-status">${STATUS_DE[s.status]}</span>
+      <span class="orb quest-orb" data-status="${escapeHtml(s.status)}" aria-hidden="true"></span>
+      <span class="quest-row1">
+        <span class="quest-ws">${escapeHtml(ws.label)}</span>
+        <span class="quest-status">${escapeHtml(STATUS_DE[s.status] || s.status)}</span>
+      </span>
+      <span class="quest-age">${fmtAgeShort(s.ageMs)}</span>
+      <span class="quest-label">${escapeHtml(trimmed)}</span>
     `;
+    item.setAttribute("aria-label",
+      `${ws.label}: ${STATUS_DE[s.status] || s.status}. ${trimmed}. Click to focus iTerm.`);
     item.addEventListener("click", () => focusSession(s, item));
     questsEl.appendChild(item);
   }

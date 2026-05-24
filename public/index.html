@@ -10,27 +10,55 @@
   <link rel="stylesheet" href="/theme.css" />
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/pixel.css" />
+  <link rel="stylesheet" href="/hud.css" />
+  <link rel="stylesheet" href="/palette.css" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%230085C7'/><circle cx='16' cy='16' r='5' fill='%2300C2FF'/></svg>" />
 </head>
 <body data-view="town">
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-dot"></span>
-      <h1>claude-tower</h1>
-      <span class="brand-sub">Mission control for your Claude Code swarm</span>
+  <header class="hud" id="hud" data-scrolled="0">
+    <div class="hud-brand">
+      <span class="hud-brand-mark">claude-tower</span>
+      <span class="hud-brand-sub">mission control</span>
     </div>
-    <div class="topbar-meta">
-      <button type="button" id="soundToggle" class="icon-btn" aria-pressed="true" title="Sound on (click to mute)">🔊</button>
-      <div class="view-toggle" role="tablist" aria-label="View">
+
+    <div class="hud-orbits" id="hudOrbits" aria-label="Live session stats">
+      <span class="hud-orb-pill" data-key="thinking" data-count="0" title="thinking + active">
+        <span class="orb" data-status="thinking"></span>
+        <span class="hud-count" data-stat="thinking">0</span>
+        <span class="hud-label">thinking</span>
+      </span>
+      <span class="hud-orb-pill" data-key="waiting" data-count="0" title="waiting for input">
+        <span class="orb" data-status="needs_input"></span>
+        <span class="hud-count" data-stat="waiting">0</span>
+        <span class="hud-label">waiting</span>
+      </span>
+      <span class="hud-orb-pill" data-key="permission" data-count="0" title="needs permission">
+        <span class="orb" data-status="needs_permission"></span>
+        <span class="hud-count" data-stat="permission">0</span>
+        <span class="hud-label">permission</span>
+      </span>
+      <span class="hud-orb-pill" data-key="idle" data-count="0" title="idle sessions">
+        <span class="orb" data-status="idle"></span>
+        <span class="hud-count" data-stat="idle">0</span>
+        <span class="hud-label">idle</span>
+      </span>
+    </div>
+
+    <div class="hud-meta topbar-meta">
+      <div class="hud-seg view-toggle" role="tablist" aria-label="View">
         <button type="button" id="viewTown" aria-pressed="true">▣ Town</button>
         <button type="button" id="viewCards" aria-pressed="false">▦ Cards</button>
       </div>
-      <label class="toggle" title="Telegram push when an agent needs input or permission">
+      <span id="conn" class="pill pill-muted">connecting…</span>
+      <label class="hud-toggle toggle" title="Telegram push when an agent needs input or permission">
         <input id="notifierToggle" type="checkbox" checked />
         <span>Telegram</span>
       </label>
-      <span id="conn" class="pill pill-muted">connecting…</span>
-      <span id="updated" class="pill pill-muted">—</span>
+      <button type="button" id="soundToggle" class="hud-icon-btn icon-btn" aria-pressed="true" title="Sound on (click to mute)">🔊</button>
+      <button type="button" id="cmdBtn" class="hud-icon-btn hud-cmd-btn" title="Command palette (⌘+K)">
+        ⌘ <kbd>K</kbd>
+      </button>
+      <span id="updated" class="pill pill-muted" title="Last snapshot timestamp">—</span>
     </div>
   </header>
 
@@ -52,7 +80,7 @@
   <main id="grid" class="grid"></main>
 
   <footer class="footer">
-    <span><code id="portInfo">localhost</code> · live · <kbd>v</kbd> view · <kbd>a</kbd> approve · <kbd>d</kbd> deny · <kbd>t</kbd> telegram · <kbd>r</kbd> reload · click → iTerm focus</span>
+    <span><code id="portInfo">localhost</code> · live · <kbd>⌘K</kbd> palette · <kbd>v</kbd> view · <kbd>a</kbd> approve · <kbd>d</kbd> deny · <kbd>t</kbd> telegram · <kbd>r</kbd> reload · click → iTerm focus</span>
   </footer>
 
   <template id="cardTpl">
@@ -79,8 +107,11 @@
 
   <script src="/storage.js" type="module"></script>
   <script src="/store.js" type="module"></script>
+  <script src="/sounds.js" type="module"></script>
   <script src="/particles.js" type="module"></script>
   <script src="/minimap.js" type="module"></script>
+  <script src="/palette.js" type="module"></script>
+  <script src="/hud.js" type="module"></script>
   <script src="/app.js" type="module"></script>
   <script src="/pixel.js" type="module"></script>
   <script src="/approvals.js" type="module"></script>

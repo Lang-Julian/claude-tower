@@ -1,12 +1,78 @@
 // Canvas particle engine — sparkles, bursts, confetti.
 // requestAnimationFrame loop, auto-pauses when no particles alive.
 // Exposes window.__particles for pixel.js to call.
+//
+// Also renders an elegant, slow-drift star-field as a background layer
+// below the FX canvas. Stars are sparse, small, slow — they're chrome,
+// not a light show. Disabled when prefers-reduced-motion.
+
+const reducedMotion = window.matchMedia &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const canvas = document.createElement("canvas");
 canvas.id = "fxCanvas";
 canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:1000;";
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d", { alpha: true });
+
+// ─── Star field (background drift) ─────────────────────────────
+const starCanvas = document.createElement("canvas");
+starCanvas.id = "starsCanvas";
+starCanvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:0;opacity:0.7;";
+if (!reducedMotion) document.body.appendChild(starCanvas);
+const starsCtx = starCanvas.getContext("2d", { alpha: true });
+let stars = [];
+let starsRaf = null;
+
+function buildStars() {
+  // Sparse — ~1 star per 12k px². 1920×1080 ≈ ~170 stars total.
+  const target = Math.floor((window.innerWidth * window.innerHeight) / 12000);
+  stars = new Array(target).fill(0).map(() => ({
+    x: Math.random() * window.innerWidth,
+    y: Math.random() * window.innerHeight,
+    r: Math.random() < 0.85 ? 0.6 : 1.2,           // mostly tiny
+    a: 0.2 + Math.random() * 0.5,                  // gentle brightness
+    twinkle: 0.4 + Math.random() * 1.2,            // hz
+    phase: Math.random() * Math.PI * 2,
+    vy: 0.015 + Math.random() * 0.03,              // slow downward drift
+    hue: Math.random() < 0.08 ? "violet" : (Math.random() < 0.20 ? "cyan" : "white"),
+  }));
+}
+
+function resizeStars() {
+  starCanvas.width = Math.floor(window.innerWidth * dpr);
+  starCanvas.height = Math.floor(window.innerHeight * dpr);
+  starCanvas.style.width = window.innerWidth + "px";
+  starCanvas.style.height = window.innerHeight + "px";
+  starsCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  starsCtx.imageSmoothingEnabled = false;
+  buildStars();
+}
+
+const STAR_COLORS = {
+  white:  "rgba(245, 246, 250, 1)",
+  cyan:   "rgba(0, 212, 255, 1)",
+  violet: "rgba(167, 139, 250, 1)",
+};
+
+function tickStars(now) {
+  if (reducedMotion) return;
+  const dt = 1 / 60;
+  starsCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  for (const s of stars) {
+    s.y += s.vy;
+    if (s.y > window.innerHeight + 4) { s.y = -4; s.x = Math.random() * window.innerWidth; }
+    s.phase += dt * s.twinkle;
+    const alpha = s.a * (0.6 + 0.4 * Math.sin(s.phase));
+    starsCtx.globalAlpha = alpha;
+    starsCtx.fillStyle = STAR_COLORS[s.hue] || STAR_COLORS.white;
+    starsCtx.beginPath();
+    starsCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    starsCtx.fill();
+  }
+  starsCtx.globalAlpha = 1;
+  starsRaf = requestAnimationFrame(tickStars);
+}
 
 let dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
 function resize() {
@@ -17,9 +83,16 @@ function resize() {
   canvas.style.height = window.innerHeight + "px";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = false;
+  if (!reducedMotion) resizeStars();
 }
 resize();
 window.addEventListener("resize", resize, { passive: true });
+
+// Start star drift (idempotent)
+if (!reducedMotion) {
+  resizeStars();
+  starsRaf = requestAnimationFrame(tickStars);
+}
 
 /** @type {Array<Particle>} */
 const particles = [];
