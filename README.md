@@ -27,12 +27,16 @@ You don't see any of it.
 
 `claude-tower` watches them all. It runs on your laptop, talks to nothing on the internet, and turns the chaos into a single board you actually look at.
 
-**Two views, one truth:**
+**Two views, one truth — plus a Vision-Pro-style command palette:**
 
 | Cards (analytical) | Town (ambient) |
 |---|---|
 | ![](./docs/img/cards.png) | ![](./docs/img/town.png) |
-| status, cost, sparkline, last prompt, approve/deny inline | each session is a pixel character in their project's "house" |
+| liquid-glass cards, status orbs with halo pulse, cost pill, inline approve/deny | each session is a pixel character in their project's "house" with neon hairline outlines |
+
+Press <kbd>⌘K</kbd> for the command palette: switch view, approve-all, jump-to-session.
+
+![](./docs/img/palette.png)
 
 ## What makes it different
 
@@ -44,6 +48,8 @@ You don't see any of it.
 | **Historic sessions** | ✅ SQLite, never lose a session | ❌ JSONL only |
 | **Hooks-driven, not polled** | ✅ Sub-second updates | ❌ Polls every 2-5s |
 | **Mobile-ready** | ✅ QR + token, runs over LAN | ❌ Localhost only |
+| **Command palette** | ✅ ⌘K, jump-to-session, bulk approve | ❌ |
+| **Two views** | ✅ Analytical cards + ambient pixel town | ❌ |
 | **Dependencies** | 1 native (`better-sqlite3`) | 50+ npm tree |
 
 ## Install
@@ -84,6 +90,9 @@ Get pinged when an agent needs you. Inline keyboard for approve/deny. Configure 
 
 ### Historic sessions
 SQLite at `~/.claude-tower/tower.sqlite`. Every event lives forever. Query with `tower db` (or any SQLite tool).
+
+### Command palette
+<kbd>⌘K</kbd> opens a fuzzy command bar: switch view, approve-all-pending, jump to a session (fuzzy-search across title + cwd + last prompt + branch), toggle telegram/sound, reload. Built like Linear/Raycast — keyboard-first.
 
 ## CLI
 
