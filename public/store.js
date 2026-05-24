@@ -29,14 +29,29 @@ function setConn(s) {
 }
 
 let backoff = 1000;
+let offlineTimer = null;
+const OFFLINE_GRACE_MS = 3000;
+
+function armOffline() {
+  if (offlineTimer) return;
+  offlineTimer = setTimeout(() => {
+    offlineTimer = null;
+    setConn("offline");
+  }, OFFLINE_GRACE_MS);
+}
+
+function cancelOffline() {
+  if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null; }
+}
+
 function connect() {
   let es;
   try { es = new EventSource("/api/events"); }
-  catch (e) { console.warn("EventSource ctor failed", e); setConn("offline"); scheduleReconnect(); return; }
+  catch (e) { console.warn("EventSource ctor failed", e); armOffline(); scheduleReconnect(); return; }
 
-  es.onopen = () => { setConn("live"); backoff = 1000; };
+  es.onopen = () => { cancelOffline(); setConn("live"); backoff = 1000; };
   es.onerror = () => {
-    setConn("offline");
+    armOffline(); // only flip to "offline" if we don't reconnect within 3s
     try { es.close(); } catch {}
     scheduleReconnect();
   };

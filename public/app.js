@@ -2,6 +2,8 @@
 // Subscribes to the shared SSE store (store.js).
 
 import { subscribe, onConn } from "/store.js";
+import { announce } from "/a11y.js";
+import { toast } from "/toast.js";
 
 const grid = document.getElementById("grid");
 const summary = document.getElementById("summary");
@@ -42,6 +44,30 @@ function fmtTitle(s) {
   return s.id.slice(0, 8);
 }
 
+const prevCounts = {};
+
+function tweenStat(el, from, to) {
+  if (from === to) { el.textContent = String(to); return; }
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (reduced) { el.textContent = String(to); return; }
+  const start = performance.now();
+  const dur = 260;
+  function frame(now) {
+    const t = Math.min(1, (now - start) / dur);
+    // ease-out cubic
+    const k = 1 - Math.pow(1 - t, 3);
+    const v = Math.round(from + (to - from) * k);
+    el.textContent = String(v);
+    if (t < 1) requestAnimationFrame(frame);
+    else el.textContent = String(to);
+  }
+  requestAnimationFrame(frame);
+  el.classList.remove("tween-bump");
+  // force reflow to restart animation
+  void el.offsetWidth;
+  el.classList.add("tween-bump");
+}
+
 function renderSummary(sessions) {
   const counts = {
     attention: 0,
@@ -59,7 +85,6 @@ function renderSummary(sessions) {
     else counts.stopped++;
   }
 
-  summary.innerHTML = "";
   const stats = [
     { key: "attention", label: "Attention", value: counts.attention },
     { key: "thinking", label: "Thinking", value: counts.thinking },
@@ -68,13 +93,27 @@ function renderSummary(sessions) {
     { key: "stopped", label: "Stopped", value: counts.stopped },
     { key: "total", label: "Total", value: counts.total },
   ];
+
+  // Diff-render summary so we can tween values rather than rebuild on every snapshot.
+  const existing = new Map();
+  for (const el of summary.querySelectorAll(".stat")) existing.set(el.dataset.key, el);
+
   for (const s of stats) {
-    const el = document.createElement("div");
-    el.className = "stat";
-    el.dataset.key = s.key;
-    el.innerHTML = `<span class="value">${s.value}</span><span class="label">${s.label}</span>`;
-    summary.appendChild(el);
+    let el = existing.get(s.key);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "stat";
+      el.dataset.key = s.key;
+      el.innerHTML = `<span class="value">0</span><span class="label">${s.label}</span>`;
+      summary.appendChild(el);
+    }
+    existing.delete(s.key);
+    const valueEl = el.querySelector(".value");
+    const prev = prevCounts[s.key] ?? 0;
+    tweenStat(valueEl, prev, s.value);
+    prevCounts[s.key] = s.value;
   }
+  for (const el of existing.values()) el.remove();
 }
 
 function makeCard(session) {
@@ -160,6 +199,7 @@ async function focusSession(session, cardEl) {
       [{ transform: "translateX(0)" }, { transform: "translateX(-6px)" }, { transform: "translateX(6px)" }, { transform: "translateX(0)" }],
       { duration: 250 }
     );
+    toast("No TTY for this session — can't focus iTerm.", { type: "warn" });
     return;
   }
   try {
@@ -169,10 +209,42 @@ async function focusSession(session, cardEl) {
       body: JSON.stringify({ tty: session.tty }),
     });
     const json = await res.json();
-    if (!json.ok) console.warn("focus failed", json);
+    if (!json.ok) {
+      console.warn("focus failed", json);
+      toast(`Focus failed: ${json.error || "unknown"}`, { type: "error" });
+    }
   } catch (e) {
     console.warn("focus error", e);
+    toast("Focus failed — network error", { type: "error" });
   }
+}
+
+let firstSnapshot = true;
+let prevAttention = 0;
+
+function clearSkeletons() {
+  const skels = grid.querySelectorAll(".skeleton-card");
+  if (!skels.length) return;
+  skels.forEach((el) => el.classList.add("state-fade-out"));
+  setTimeout(() => skels.forEach((el) => el.remove()), 240);
+  const townLoading = document.getElementById("townLoading");
+  if (townLoading) {
+    townLoading.classList.add("state-fade-out");
+    setTimeout(() => townLoading.remove(), 240);
+  }
+  grid.setAttribute("aria-busy", "false");
+}
+
+function renderEmptyHero() {
+  if (grid.querySelector(".empty-hero")) return;
+  grid.innerHTML = `
+    <div class="empty-hero" role="status">
+      <div class="empty-mark" aria-hidden="true">⌁</div>
+      <h2>No sessions yet</h2>
+      <p>Run <code>claude</code> anywhere — it'll show up here automatically.</p>
+      <div class="empty-cmd"><code>claude</code></div>
+    </div>
+  `;
 }
 
 function render(snapshot) {
@@ -183,6 +255,11 @@ function render(snapshot) {
     if (oa !== ob) return oa - ob;
     return a.mtimeMs - b.mtimeMs > 0 ? -1 : 1;
   });
+
+  if (firstSnapshot) {
+    clearSkeletons();
+    firstSnapshot = false;
+  }
 
   renderSummary(sessions);
 
@@ -209,9 +286,23 @@ function render(snapshot) {
   }
 
   if (!sessions.length) {
-    grid.innerHTML = '<div class="empty">No active sessions. Run <code>claude</code> anywhere — it shows up here.</div>';
-  } else if (grid.querySelector(".empty")) {
-    grid.querySelector(".empty").remove();
+    renderEmptyHero();
+  } else {
+    const hero = grid.querySelector(".empty-hero");
+    if (hero) hero.remove();
+    const legacy = grid.querySelector(".empty");
+    if (legacy) legacy.remove();
+  }
+
+  // Announce attention transitions to assistive tech (throttled in a11y.js).
+  const attention = sessions.filter((s) => s.status === "needs_input" || s.status === "needs_permission").length;
+  if (attention !== prevAttention) {
+    if (attention > prevAttention) {
+      announce(`${attention} session${attention === 1 ? "" : "s"} need attention`);
+    } else if (attention === 0) {
+      announce("All sessions clear");
+    }
+    prevAttention = attention;
   }
 
   const ts = new Date(snapshot.generatedAt || Date.now());
@@ -225,18 +316,29 @@ function updateCard(node, session) {
 // Subscribe to shared store
 subscribe((snapshot) => render(snapshot));
 
+let prevConn = "connecting";
 onConn((state) => {
+  document.body.setAttribute("data-conn", state);
   if (state === "live") {
     connEl.textContent = "live";
-    connEl.classList.remove("pill-muted");
+    connEl.classList.remove("pill-muted", "pill-offline");
     connEl.classList.add("pill-live");
+    if (prevConn === "offline") {
+      toast("Back online", { type: "success", duration: 2500 });
+    }
   } else if (state === "offline") {
-    connEl.textContent = "offline";
-    connEl.classList.remove("pill-live");
-    connEl.classList.add("pill-muted");
+    connEl.textContent = "RECONNECTING…";
+    connEl.classList.remove("pill-live", "pill-muted");
+    connEl.classList.add("pill-offline");
+    if (prevConn === "live") {
+      toast("Connection lost — retrying", { type: "warn", duration: 5000 });
+    }
   } else {
     connEl.textContent = "connecting…";
+    connEl.classList.remove("pill-live", "pill-offline");
+    connEl.classList.add("pill-muted");
   }
+  prevConn = state;
 });
 
 // Notifier toggle
