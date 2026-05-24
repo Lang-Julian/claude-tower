@@ -10,10 +10,25 @@
 // Talks to /api/usage every 30s. The endpoint is fast (<10ms warm).
 
 const POLL_MS = 30_000;
-const SHOW_USD = (() => {
+// SHOW_USD is read from localStorage but mutable: the HUD plan pill flips it
+// at runtime and emits `tower:show-usd-changed` so we can repaint without a
+// hard reload. Keep as `let` so the listener below can update it.
+let SHOW_USD = (() => {
   try { return localStorage.getItem("tower:show-usd") === "1"; }
   catch { return false; }
 })();
+
+window.addEventListener("tower:show-usd-changed", (e) => {
+  SHOW_USD = !!e.detail?.showUsd;
+  // Re-tag the pill title + re-render with the last data.
+  const pill = document.getElementById("costPill");
+  if (pill) {
+    pill.title = SHOW_USD
+      ? "USD cost today · burn-rate over the last 60min (API plan)"
+      : "Tokens today · tokens/h over the last 60min (Max/Pro plan)";
+  }
+  if (lastData) { updateTopbar(lastData); decorateCards(lastData); }
+});
 
 const BRAILLE_LEVELS = [
   // 8 visual levels — empty, 1/8, 2/8 ... full

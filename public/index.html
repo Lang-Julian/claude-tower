@@ -14,9 +14,13 @@
   <link rel="stylesheet" href="/hud.css" />
   <link rel="stylesheet" href="/palette.css" />
   <link rel="stylesheet" href="/states.css" />
+  <link rel="stylesheet" href="/onboarding.css" />
+  <link rel="stylesheet" href="/help-overlay.css" />
+  <link rel="stylesheet" href="/town.css" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%230085C7'/><circle cx='16' cy='16' r='5' fill='%2300C2FF'/></svg>" />
 </head>
 <body data-view="town">
+  <div id="townVignette" aria-hidden="true"></div>
   <header class="hud" id="hud" data-scrolled="0">
     <div class="hud-brand">
       <span class="hud-brand-mark">claude-tower</span>
@@ -24,10 +28,15 @@
     </div>
 
     <div class="hud-orbits" id="hudOrbits" aria-label="Live session stats">
-      <span class="hud-orb-pill" data-key="thinking" data-count="0" title="thinking + active">
+      <span class="hud-orb-pill" data-key="thinking" data-count="0" title="actively reasoning (Claude is thinking)">
         <span class="orb" data-status="thinking"></span>
         <span class="hud-count" data-stat="thinking">0</span>
         <span class="hud-label">thinking</span>
+      </span>
+      <span class="hud-orb-pill" data-key="active" data-count="0" title="running a tool / executing">
+        <span class="orb" data-status="running"></span>
+        <span class="hud-count" data-stat="active">0</span>
+        <span class="hud-label">active</span>
       </span>
       <span class="hud-orb-pill" data-key="waiting" data-count="0" title="waiting for input">
         <span class="orb" data-status="needs_input"></span>
@@ -52,11 +61,16 @@
         <button type="button" id="viewCards" aria-pressed="false">▦ Cards</button>
       </div>
       <span id="conn" class="pill pill-muted">connecting…</span>
+      <button type="button" id="planPill" class="hud-plan-pill" aria-pressed="false" title="Plan: tokens shown (Max/Pro). Click to switch to USD (API plan).">
+        <span class="hud-plan-label">Plan</span>
+        <span class="hud-plan-value" data-value="max">MAX</span>
+      </button>
       <label class="hud-toggle toggle" title="Telegram push when an agent needs input or permission">
         <input id="notifierToggle" type="checkbox" checked />
         <span>Telegram</span>
       </label>
       <button type="button" id="soundToggle" class="hud-icon-btn icon-btn" aria-pressed="true" title="Sound on (click to mute)">🔊</button>
+      <button type="button" id="helpBtn" class="hud-icon-btn" aria-label="Help (press ?)" title="Help &amp; shortcuts (?)">?</button>
       <button type="button" id="cmdBtn" class="hud-icon-btn hud-cmd-btn" title="Command palette (⌘+K)">
         ⌘ <kbd>K</kbd>
       </button>
@@ -163,6 +177,8 @@
   <script src="/sounds.js" type="module"></script>
   <script src="/particles.js" type="module"></script>
   <script src="/minimap.js" type="module"></script>
+  <script src="/help-overlay.js" type="module"></script>
+  <script src="/onboarding.js" type="module"></script>
   <script src="/palette.js" type="module"></script>
   <script src="/hud.js" type="module"></script>
   <script src="/app.js" type="module"></script>

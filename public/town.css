@@ -238,6 +238,33 @@ body[data-view="town"] {
 }
 .room[data-attention="1"]::before { opacity: 0.65; }
 
+/* "Needs permission" trumps "needs input" → red hairline + glow */
+.room[data-attention="permission"] {
+  border-color: rgba(255, 90, 95, 0.65);
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 1px rgba(255, 90, 95, 0.25),
+    0 0 36px -8px rgba(255, 90, 95, 0.6);
+  animation: room-perm-pulse 1.8s var(--ease) infinite;
+}
+.room[data-attention="permission"]::before { opacity: 0.85; }
+@keyframes room-perm-pulse {
+  0%, 100% { box-shadow: var(--shadow-card),
+                         0 0 0 1px rgba(255, 90, 95, 0.25),
+                         0 0 32px -10px rgba(255, 90, 95, 0.55); }
+  50%      { box-shadow: var(--shadow-card),
+                         0 0 0 1px rgba(255, 90, 95, 0.45),
+                         0 0 44px -4px rgba(255, 90, 95, 0.75); }
+}
+
+/* Cross-link: when a quest entry is hovered, lift the matching sprite. */
+body[data-view="town"] .sprite[data-attention-hover="1"] {
+  transform: translateY(-6px) scale(1.08);
+  filter: drop-shadow(0 6px 14px rgba(0, 212, 255, 0.55))
+          drop-shadow(0 0 20px rgba(110, 123, 255, 0.4));
+  z-index: 2;
+}
+
 .room > header {
   display: flex;
   align-items: center;
@@ -652,6 +679,214 @@ body[data-view="town"] .sprite:focus-visible {
     0 0 18px -4px var(--accent-glow);
 }
 
+/* ─── Sprite states (overrides legacy pixel.css for town view) ── */
+/* Breathing (thinking) — gentle scale via transform, GPU-friendly. */
+body[data-view="town"] .sprite[data-status="thinking"] .sprite-body,
+body[data-view="town"] .sprite[data-status="running"]  .sprite-body {
+  animation: sprite-breathe 1.6s var(--ease) infinite;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+@keyframes sprite-breathe {
+  0%, 100% { transform: scale(1.00) translateY(0); }
+  50%      { transform: scale(1.05) translateY(-1px); }
+}
+
+/* Idle — dim to 0.4, no animation. Beats out legacy "breathe". */
+body[data-view="town"] .sprite[data-status="idle"] {
+  opacity: 0.4;
+  filter: none;
+}
+body[data-view="town"] .sprite[data-status="idle"] .sprite-body {
+  animation: none;
+}
+
+/* Stopped / archived — grayscale + heavily dimmed. */
+body[data-view="town"] .sprite[data-status="stopped"],
+body[data-view="town"] .sprite[data-status="archived"] {
+  opacity: 0.25;
+  filter: grayscale(1);
+}
+body[data-view="town"] .sprite[data-status="stopped"] .sprite-body,
+body[data-view="town"] .sprite[data-status="archived"] .sprite-body {
+  animation: none;
+}
+
+/* needs_permission — red ring around the sprite + halo (replaces drop-shadow only) */
+body[data-view="town"] .sprite[data-status="needs_permission"]::after {
+  content: "";
+  position: absolute;
+  inset: -8px -6px -4px -6px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(255, 90, 95, 0.75);
+  box-shadow:
+    0 0 18px -2px rgba(255, 90, 95, 0.7),
+    0 0 0 1px rgba(255, 90, 95, 0.18) inset;
+  pointer-events: none;
+  animation: sprite-perm-ring 1.4s var(--ease) infinite;
+}
+@keyframes sprite-perm-ring {
+  0%, 100% { opacity: 0.7; transform: scale(1.00); }
+  50%      { opacity: 1.0; transform: scale(1.06); }
+}
+
+/* needs_input — softer amber ring */
+body[data-view="town"] .sprite[data-status="needs_input"]::after {
+  content: "";
+  position: absolute;
+  inset: -6px -4px -3px -4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 184, 77, 0.55);
+  box-shadow: 0 0 14px -2px rgba(255, 184, 77, 0.5);
+  pointer-events: none;
+}
+
+/* ─── Attention vignette (screen edges glow red on pending perm) ─ */
+#townVignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-hud); /* under modals, over content */
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease);
+  background:
+    radial-gradient(ellipse at top,
+      rgba(255, 90, 95, 0.18) 0%,
+      transparent 35%),
+    radial-gradient(ellipse at bottom,
+      rgba(255, 90, 95, 0.14) 0%,
+      transparent 35%),
+    linear-gradient(90deg,
+      rgba(255, 90, 95, 0.10) 0%,
+      transparent 12%,
+      transparent 88%,
+      rgba(255, 90, 95, 0.10) 100%);
+  mix-blend-mode: screen;
+}
+body[data-has-permission="1"] #townVignette {
+  opacity: 1;
+  animation: vignette-breathe 2.4s var(--ease) infinite;
+}
+@keyframes vignette-breathe {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.25); }
+}
+
+/* ─── Quest log: grouping with status bars ───────────────────── */
+.quest-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 6px 10px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.015);
+  position: relative;
+}
+.quest-group + .quest-group { margin-top: 8px; }
+.quest-group::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 6px; bottom: 6px;
+  width: 3px;
+  border-radius: var(--r-pill);
+  background: var(--text-3);
+  opacity: 0.5;
+}
+.quest-group[data-kind="permission"]::before {
+  background: var(--status-permission);
+  box-shadow: 0 0 12px -2px var(--status-permission);
+  opacity: 0.9;
+}
+.quest-group[data-kind="input"]::before {
+  background: var(--status-input);
+  box-shadow: 0 0 10px -2px var(--status-input);
+  opacity: 0.85;
+}
+.quest-group[data-kind="idle"]::before { opacity: 0.4; }
+
+.quest-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 4px 4px 10px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.quest-group[data-kind="permission"] .quest-group-head { color: var(--status-permission); }
+.quest-group[data-kind="input"]      .quest-group-head { color: var(--status-input); }
+.quest-group-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hover-expand prompt preview from clamp-2 → clamp-none */
+.quest:hover .quest-label {
+  -webkit-line-clamp: unset;
+  display: block;
+  white-space: normal;
+  overflow: visible;
+}
+
+/* ─── Empty states ────────────────────────────────────────────── */
+.town-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 360px;
+  padding: 48px 24px;
+  text-align: center;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 60%, rgba(110, 123, 255, 0.06), transparent 70%),
+    var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  color: var(--text-2);
+}
+.town-empty .empty-sprite {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+  animation: empty-breathe 4s var(--ease) infinite;
+}
+@keyframes empty-breathe {
+  0%, 100% { transform: scale(1.00); opacity: 0.85; }
+  50%      { transform: scale(1.02); opacity: 1.00; }
+}
+.town-empty .empty-headline {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+.town-empty .empty-hint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+  max-width: 380px;
+  line-height: 1.6;
+}
+.town-empty .empty-hint kbd {
+  margin: 0 2px;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 1280px) {
   #town-wrap { grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; padding: 16px 20px 32px; }
@@ -684,5 +919,15 @@ body[data-view="town"] .sprite:focus-visible {
   }
   .speech-bubble.bub-show { transform: none !important; }
   .hud-perm:not(:empty),
-  .quest-needs_permission:not(:hover) { animation: none !important; }
+  .quest-needs_permission:not(:hover),
+  .room[data-attention="permission"],
+  body[data-has-permission="1"] #townVignette,
+  body[data-view="town"] .sprite[data-status="thinking"] .sprite-body,
+  body[data-view="town"] .sprite[data-status="running"]  .sprite-body,
+  body[data-view="town"] .sprite[data-status="needs_permission"]::after,
+  .town-empty .empty-sprite {
+    animation: none !important;
+  }
+  /* keep vignette visible (no fade-pulse), still red so user notices */
+  body[data-has-permission="1"] #townVignette { opacity: 1; }
 }

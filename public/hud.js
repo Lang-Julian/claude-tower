@@ -1,23 +1,26 @@
-// claude-tower — HUD live stats + scroll glow + palette button wiring.
+// claude-tower — HUD live stats + scroll glow + palette/help/plan wiring.
 //
 // The HUD's count pills tween smoothly between snapshots (200ms).
 // Stats come from the shared SSE store, no extra polling.
 
 import { subscribe } from "/store.js";
 import palette from "/palette.js";
+import help from "/help-overlay.js";
 
 const hudEl = document.getElementById("hud");
 const countEls = {
-  thinking: hudEl?.querySelector('[data-stat="thinking"]'),
-  waiting:  hudEl?.querySelector('[data-stat="waiting"]'),
+  thinking:   hudEl?.querySelector('[data-stat="thinking"]'),
+  active:     hudEl?.querySelector('[data-stat="active"]'),
+  waiting:    hudEl?.querySelector('[data-stat="waiting"]'),
   permission: hudEl?.querySelector('[data-stat="permission"]'),
-  idle:     hudEl?.querySelector('[data-stat="idle"]'),
+  idle:       hudEl?.querySelector('[data-stat="idle"]'),
 };
 const pillEls = {
-  thinking: hudEl?.querySelector('[data-key="thinking"]'),
-  waiting:  hudEl?.querySelector('[data-key="waiting"]'),
+  thinking:   hudEl?.querySelector('[data-key="thinking"]'),
+  active:     hudEl?.querySelector('[data-key="active"]'),
+  waiting:    hudEl?.querySelector('[data-key="waiting"]'),
   permission: hudEl?.querySelector('[data-key="permission"]'),
-  idle:     hudEl?.querySelector('[data-key="idle"]'),
+  idle:       hudEl?.querySelector('[data-key="idle"]'),
 };
 const updatedEl = document.getElementById("updated");
 
@@ -29,7 +32,6 @@ function tweenNumber(el, to, dur = 200) {
   const start = performance.now();
   function step(now) {
     const t = Math.min(1, (now - start) / dur);
-    // ease-decel-ish
     const eased = 1 - Math.pow(1 - t, 3);
     const v = Math.round(from + (to - from) * eased);
     el.textContent = String(v);
@@ -46,14 +48,19 @@ function setStat(key, count) {
 
 subscribe((snapshot) => {
   const sessions = snapshot.sessions || [];
-  let thinking = 0, waiting = 0, permission = 0, idle = 0;
+  // Separate thinking (reasoning) from running (executing tools). Both are
+  // "active" mentally but visually telling them apart matters: if everything
+  // sits at "thinking" you're paying for tokens; if "active" you're shipping.
+  let thinking = 0, active = 0, waiting = 0, permission = 0, idle = 0;
   for (const s of sessions) {
-    if (s.status === "thinking" || s.status === "running") thinking++;
+    if (s.status === "thinking") thinking++;
+    else if (s.status === "running") active++;
     else if (s.status === "needs_input") waiting++;
     else if (s.status === "needs_permission") permission++;
     else if (s.status === "idle") idle++;
   }
   setStat("thinking", thinking);
+  setStat("active", active);
   setStat("waiting", waiting);
   setStat("permission", permission);
   setStat("idle", idle);
@@ -77,5 +84,33 @@ window.addEventListener("scroll", () => {
 }, { passive: true });
 updateScroll();
 
-// Wire the ⌘K button — open palette.
+// ─── Plan pill — MAX (tokens) vs API (USD) ───────────────────────
+// Default is tokens (MAX/Pro). Toggling writes `tower:show-usd` and reloads
+// so usage.js picks up the flag from its boot-time read.
+const planBtn = document.getElementById("planPill");
+function readShowUsd() {
+  try { return localStorage.getItem("tower:show-usd") === "1"; } catch { return false; }
+}
+function paintPlan() {
+  if (!planBtn) return;
+  const usd = readShowUsd();
+  const valueEl = planBtn.querySelector(".hud-plan-value");
+  valueEl.textContent = usd ? "API" : "MAX";
+  valueEl.dataset.value = usd ? "api" : "max";
+  planBtn.setAttribute("aria-pressed", usd ? "true" : "false");
+  planBtn.title = usd
+    ? "Plan: USD shown (API). Click to switch to tokens (Max/Pro)."
+    : "Plan: tokens shown (Max/Pro). Click to switch to USD (API plan).";
+}
+paintPlan();
+planBtn?.addEventListener("click", () => {
+  const next = !readShowUsd();
+  try { localStorage.setItem("tower:show-usd", next ? "1" : "0"); } catch {}
+  paintPlan();
+  // Notify usage.js (cost-pill rebuild) without a hard reload.
+  window.dispatchEvent(new CustomEvent("tower:show-usd-changed", { detail: { showUsd: next } }));
+});
+
+// Wire the ⌘K button + the help button.
 document.getElementById("cmdBtn")?.addEventListener("click", () => palette.open());
+document.getElementById("helpBtn")?.addEventListener("click", () => help.open());

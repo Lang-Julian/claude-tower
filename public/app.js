@@ -258,14 +258,24 @@ function clearSkeletons() {
 
 function renderEmptyHero() {
   if (grid.querySelector(".empty-hero")) return;
-  grid.innerHTML = `
-    <div class="empty-hero" role="status">
-      <div class="empty-mark" aria-hidden="true">⌁</div>
-      <h2>No sessions yet</h2>
-      <p>Run <code>claude</code> anywhere — it'll show up here automatically.</p>
-      <div class="empty-cmd"><code>claude</code></div>
-    </div>
+  // Don't blow away skeletons mid-fade — wait until they're gone, otherwise
+  // the user sees both the hero and the shimmer for a tick. Skeletons are
+  // removed 240ms after `clearSkeletons` is called.
+  const stillFading = grid.querySelector(".skeleton-card");
+  if (stillFading) {
+    setTimeout(renderEmptyHero, 260);
+    return;
+  }
+  const hero = document.createElement("div");
+  hero.className = "empty-hero";
+  hero.setAttribute("role", "status");
+  hero.innerHTML = `
+    <div class="empty-mark" aria-hidden="true">⌁</div>
+    <h2>No sessions yet</h2>
+    <p>Run <code>claude</code> anywhere — it'll show up here automatically. Press <kbd>?</kbd> for shortcuts.</p>
+    <div class="empty-cmd"><code>claude</code></div>
   `;
+  grid.appendChild(hero);
 }
 
 function render(snapshot) {

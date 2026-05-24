@@ -6,6 +6,9 @@
 
 import { subscribe, getLastSnapshot } from "/store.js";
 import { play } from "/sounds.js";
+import help from "/help-overlay.js";
+import onboarding from "/onboarding.js";
+import { toast } from "/toast.js";
 
 const STATUS_LABEL = {
   needs_input: "waiting for you",
@@ -45,34 +48,26 @@ const inputEl = root.querySelector("input");
 const listEl = root.querySelector(".palette-list");
 const cardEl = root.querySelector(".palette");
 
-// Shortcut help overlay
-const shortcutOverlay = document.createElement("div");
-shortcutOverlay.className = "shortcut-overlay";
-shortcutOverlay.dataset.open = "0";
-shortcutOverlay.innerHTML = `
-  <div class="shortcut-card" role="dialog" aria-label="Keyboard shortcuts">
-    <h3>Keyboard shortcuts</h3>
-    <dl>
-      <dt><kbd>⌘</kbd> <kbd>K</kbd></dt><dd>Open command palette</dd>
-      <dt><kbd>v</kbd></dt><dd>Toggle town / cards view</dd>
-      <dt><kbd>a</kbd></dt><dd>Approve focused approval</dd>
-      <dt><kbd>d</kbd></dt><dd>Deny focused approval</dd>
-      <dt><kbd>t</kbd></dt><dd>Toggle Telegram notifier</dd>
-      <dt><kbd>s</kbd></dt><dd>Toggle sound</dd>
-      <dt><kbd>r</kbd></dt><dd>Reload</dd>
-      <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Town filters</dd>
-      <dt><kbd>?</kbd></dt><dd>Show this help</dd>
-    </dl>
-    <div class="shortcut-close">press <kbd>esc</kbd> to close</div>
-  </div>
-`;
-document.body.appendChild(shortcutOverlay);
-shortcutOverlay.addEventListener("click", (e) => {
-  if (e.target === shortcutOverlay) closeShortcuts();
-});
+// Recent commands persistence (last 5 used). Sessions are never recorded.
+const RECENT_KEY = "tower:palette-recents";
+const RECENT_MAX = 5;
 
-function openShortcuts() { shortcutOverlay.dataset.open = "1"; }
-function closeShortcuts() { shortcutOverlay.dataset.open = "0"; }
+function loadRecents() {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.slice(0, RECENT_MAX) : [];
+  } catch { return []; }
+}
+function saveRecents(ids) {
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(ids.slice(0, RECENT_MAX))); } catch {}
+}
+function pushRecent(id) {
+  const cur = loadRecents().filter((x) => x !== id);
+  cur.unshift(id);
+  saveRecents(cur);
+}
 
 // ─── Command registry ────────────────────────────────────────────
 // External code can call registerCommand({ ... }) to add commands.
@@ -171,12 +166,59 @@ registerCommand({
   run: () => location.reload(),
 });
 registerCommand({
-  id: "shortcuts",
-  label: "Show keyboard shortcuts",
-  hint: "all ⌘ + key combos",
-  icon: "⌨",
+  id: "help",
+  label: "Help & keyboard shortcuts",
+  hint: "every binding, palette command, and setup tip",
+  icon: "?",
   group: "System",
-  run: () => { close(); setTimeout(openShortcuts, 50); },
+  run: () => { close(); setTimeout(() => help.open(), 50); },
+});
+registerCommand({
+  id: "welcome",
+  label: "Show welcome tour",
+  hint: "re-open the first-run onboarding",
+  icon: "★",
+  group: "System",
+  run: () => { close(); setTimeout(() => onboarding.open(), 50); },
+});
+
+// Reveal the data folder. Pragmatic: file:// works in Safari/older Chrome but
+// is blocked in modern Chromium for security. We fall back to copying the path
+// + a toast so the user can paste into Finder.
+const TOWER_DIR_HINT = "~/.claude-tower";
+registerCommand({
+  id: "reveal-folder",
+  label: "Open ~/.claude-tower folder",
+  hint: "logs, SQLite DB, port file",
+  icon: "📂",
+  group: "System",
+  run: async () => {
+    // Best-effort: copy the path so the user can paste it into Finder's "Go".
+    // (Browsers won't let us open arbitrary file:// URLs from a fetch context.)
+    try {
+      await navigator.clipboard.writeText(TOWER_DIR_HINT);
+      toast(`Copied ${TOWER_DIR_HINT} — paste in Finder (⌘⇧G)`, { type: "info", duration: 4000 });
+    } catch {
+      toast(`Open ${TOWER_DIR_HINT} in Finder (⌘⇧G)`, { type: "info", duration: 4000 });
+    }
+  },
+});
+
+registerCommand({
+  id: "mobile-url",
+  label: "Copy mobile URL",
+  hint: "LAN host for your phone — get the token with `tower mobile`",
+  icon: "📱",
+  group: "System",
+  run: async () => {
+    const url = `${location.protocol}//${location.host}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast(`Copied ${url} — run \`tower mobile\` in a terminal for the QR + token`, { type: "info", duration: 5000 });
+    } catch {
+      toast(`Mobile URL: ${url}`, { type: "info", duration: 5000 });
+    }
+  },
 });
 
 // ─── Session snapshot for "Jump to session" ──────────────────────
@@ -202,25 +244,44 @@ function fmtTitle(s) {
   return s.id.slice(0, 8);
 }
 
+function makeCommandItem(c) {
+  return {
+    kind: "command",
+    id: c.id,
+    label: c.label,
+    hint: c.hint || "",
+    icon: c.icon || "›",
+    group: c.group || "Commands",
+    run: c.run,
+  };
+}
+
 // Build a single virtual item list for the current query.
 function buildItems(query) {
   const q = query.trim().toLowerCase();
   const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+  const noQuery = tokens.length === 0;
 
   const items = [];
+
+  // "Recent" group only renders when there's no active query.
+  if (noQuery) {
+    const recentIds = loadRecents();
+    const byId = new Map(commands.map((c) => [c.id, c]));
+    for (const id of recentIds) {
+      const c = byId.get(id);
+      if (!c) continue;
+      const it = makeCommandItem(c);
+      it.group = "Recent";
+      items.push(it);
+    }
+  }
+
   // Static commands
   for (const c of commands) {
     const hay = `${c.label} ${c.hint || ""} ${c.group || ""}`;
     if (!tokens.length || tokensMatch(hay, tokens)) {
-      items.push({
-        kind: "command",
-        id: c.id,
-        label: c.label,
-        hint: c.hint || "",
-        icon: c.icon || "›",
-        group: c.group || "Commands",
-        run: c.run,
-      });
+      items.push(makeCommandItem(c));
     }
   }
   // Sessions
@@ -262,7 +323,10 @@ function render() {
   if (selectedIdx >= items.length) selectedIdx = Math.max(0, items.length - 1);
 
   if (!items.length) {
-    listEl.innerHTML = `<div class="palette-empty">No matches.</div>`;
+    const q = inputEl.value.trim();
+    listEl.innerHTML = q
+      ? `<div class="palette-empty">No matches for "<span style="color:var(--text-2);">${q.replace(/[<&>]/g, "")}</span>". Try a session title, project path, or git branch.</div>`
+      : `<div class="palette-empty">Nothing to show.</div>`;
     return;
   }
 
@@ -333,6 +397,8 @@ function updateSelection() {
 function execute() {
   const item = currentItems[selectedIdx];
   if (!item) return;
+  // Record command (not session) usage for the Recent group.
+  if (item.kind === "command") pushRecent(item.id);
   close();
   // Defer so close animation doesn't lag the action
   setTimeout(() => {
@@ -402,20 +468,12 @@ root.addEventListener("click", (e) => {
   if (e.target === root) close();
 });
 
-// Global key listener — ⌘+K / Ctrl+K opens.
+// Global key listener — ⌘+K / Ctrl+K opens the palette.
+// `?` is handled by help-overlay.js so we don't double-bind it here.
 window.addEventListener("keydown", (e) => {
   if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
     e.preventDefault();
     toggle();
-    return;
-  }
-  if (e.key === "Escape") {
-    if (shortcutOverlay.dataset.open === "1") { closeShortcuts(); return; }
-  }
-  if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
-    if (e.target && /input|textarea/i.test(e.target.tagName)) return;
-    e.preventDefault();
-    openShortcuts();
   }
 });
 

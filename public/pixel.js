@@ -4,7 +4,7 @@
 // Routes each session to a workspace room based on cwd, renders a sprite
 // whose animation reflects the session's current status + last tool.
 
-import { subscribe } from "/store.js";
+import { subscribe, getLastSnapshot } from "/store.js";
 import { play as playSound, isSoundOn as soundsIsOn, setSoundOn as soundsSetOn } from "/sounds.js";
 
 // ─── Workspace map ────────────────────────────────────────────────
@@ -540,10 +540,17 @@ function showBubble(spriteEl, skipReposition = false) {
   if (!skipReposition) {
     const rect = spriteEl.getBoundingClientRect();
     const bubRect = bub.getBoundingClientRect();
+    const PAD = 8;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    // Prefer above. If above doesn't fit, drop below; if neither, clamp.
     let left = rect.left + rect.width / 2 - bubRect.width / 2;
     let top = rect.top - bubRect.height - 12;
-    left = Math.max(8, Math.min(window.innerWidth - bubRect.width - 8, left));
-    if (top < 8) top = rect.bottom + 12;
+    if (top < PAD) top = rect.bottom + 12;
+    // Clamp horizontally (handles right-edge rooms).
+    left = Math.max(PAD, Math.min(W - bubRect.width - PAD, left));
+    // Clamp vertically (handles bottom-row sprites with tall bubbles).
+    top = Math.max(PAD, Math.min(H - bubRect.height - PAD, top));
     bub.style.left = left + "px";
     bub.style.top = top + "px";
   }
@@ -635,6 +642,21 @@ const ICON_GLYPH = {
 };
 
 function renderTown(sessions) {
+  // Reflect "any session needs permission?" on <body> for CSS-only vignette.
+  const permCount = sessions.reduce((n, s) => n + (s.status === "needs_permission" ? 1 : 0), 0);
+  document.body.dataset.hasPermission = permCount > 0 ? "1" : "0";
+
+  // Empty town: no sessions at all → friendly placeholder + bail out.
+  if (sessions.length === 0) {
+    renderEmptyTown();
+    renderHud(sessions);
+    renderQuests(sessions);
+    return;
+  }
+  // Clear any prior empty placeholder when sessions return.
+  const emptyEl = townEl.querySelector(".town-empty");
+  if (emptyEl) emptyEl.remove();
+
   // Group sessions by workspace
   const byWs = new Map();
   for (const s of sessions) {
@@ -645,12 +667,19 @@ function renderTown(sessions) {
 
   // Ensure rooms exist only for active workspaces (auto-collapse empty ones)
   const seen = new Set();
-  // Stable order: workspaces with attention first, then size
+  // Stable order: permission > input > size > alphabetical workspace label.
   const ordered = [...byWs.values()].sort((a, b) => {
+    const aPerm = a.sessions.filter((s) => s.status === "needs_permission").length;
+    const bPerm = b.sessions.filter((s) => s.status === "needs_permission").length;
+    if (aPerm !== bPerm) return bPerm - aPerm;
     const aAtt = a.sessions.filter(needsAttention).length;
     const bAtt = b.sessions.filter(needsAttention).length;
     if (aAtt !== bAtt) return bAtt - aAtt;
-    return b.sessions.length - a.sessions.length;
+    const aAct = a.sessions.filter((s) => s.status === "thinking" || s.status === "running").length;
+    const bAct = b.sessions.filter((s) => s.status === "thinking" || s.status === "running").length;
+    if (aAct !== bAct) return bAct - aAct;
+    if (b.sessions.length !== a.sessions.length) return b.sessions.length - a.sessions.length;
+    return a.ws.label.localeCompare(b.ws.label);
   });
   const MAX_PER_ROOM = 12;
   const visibleSessionIds = new Set();
@@ -689,7 +718,10 @@ function renderTown(sessions) {
     }
     entry.countEl.textContent = sessions.length;
     entry.countEl.dataset.count = sessions.length;
-    entry.room.dataset.attention = sessions.some(needsAttention) ? "1" : "0";
+    const hasPerm = sessions.some((s) => s.status === "needs_permission");
+    const hasInput = sessions.some((s) => s.status === "needs_input");
+    entry.room.dataset.attention =
+      hasPerm ? "permission" : (hasInput ? "1" : "0");
     // Apply team-color hairline based on workspace shirt
     const [teamShirt, teamShirtDark] = shirtFor(ws.key);
     entry.room.style.setProperty("--team", teamShirt);
@@ -711,6 +743,39 @@ function renderTown(sessions) {
 
   renderQuests(sessions);
   renderHud(sessions);
+  updateFilterEmpty(sessions);
+}
+
+// If the current filter hides every visible sprite, surface a friendly notice.
+function updateFilterEmpty(sessions) {
+  const filter = currentFilter();
+  const prior = townEl.querySelector(".town-empty.is-filter");
+  if (filter === "all" || sessions.length === 0) {
+    if (prior) prior.remove();
+    return;
+  }
+  const visible = sessions.some((s) => groupOf(s.status) === filter);
+  if (visible) {
+    if (prior) prior.remove();
+    return;
+  }
+  if (prior) return;
+  const LABELS = {
+    attention: ["nobody needs you", "All agents are quietly working — enjoy the calm."],
+    active:    ["nothing running", "No agents are thinking or running right now."],
+    idle:      ["no sleepers",    "Every agent is either active or off-duty."],
+  };
+  const [headline, hint] = LABELS[filter] || ["nothing here", ""];
+  const el = document.createElement("div");
+  el.className = "town-empty is-filter";
+  el.innerHTML = `
+    <svg class="empty-sprite" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+      ${spriteSvgInline(SPRITE_AGENT_SLEEP)}
+    </svg>
+    <div class="empty-headline">${escapeHtml(headline)}</div>
+    <div class="empty-hint">${escapeHtml(hint)} Press <kbd>1</kbd> to clear the filter.</div>
+  `;
+  townEl.appendChild(el);
 }
 
 function needsAttention(s) {
@@ -792,29 +857,105 @@ function renderQuests(sessions) {
   `;
   questsEl.appendChild(head);
 
-  for (const s of attention) {
-    const ws = workspaceFor(s.cwd);
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = `quest quest-${s.status}`;
-    item.dataset.tty = s.tty || "";
-    item.dataset.sessionId = s.id;
-    const label = s.lastPrompt || s.title || s.id.slice(0, 12);
-    const trimmed = label.length > 140 ? label.slice(0, 140) + "…" : label;
-    item.innerHTML = `
-      <span class="orb quest-orb" data-status="${escapeHtml(s.status)}" aria-hidden="true"></span>
-      <span class="quest-row1">
-        <span class="quest-ws">${escapeHtml(ws.label)}</span>
-        <span class="quest-status">${escapeHtml(STATUS_DE[s.status] || s.status)}</span>
-      </span>
-      <span class="quest-age">${fmtAgeShort(s.ageMs)}</span>
-      <span class="quest-label">${escapeHtml(trimmed)}</span>
+  // Group: permission first (red bar), then input (amber bar).
+  const groups = [
+    { kind: "permission", label: "Needs permission", statuses: ["needs_permission"] },
+    { kind: "input",      label: "Waiting for you",  statuses: ["needs_input"] },
+  ];
+  for (const grp of groups) {
+    const items = attention.filter((s) => grp.statuses.includes(s.status));
+    if (!items.length) continue;
+    const wrap = document.createElement("div");
+    wrap.className = "quest-group";
+    wrap.dataset.kind = grp.kind;
+    const ghead = document.createElement("div");
+    ghead.className = "quest-group-head";
+    ghead.innerHTML = `
+      <span>${escapeHtml(grp.label)}</span>
+      <span class="quest-group-count">${items.length}</span>
     `;
-    item.setAttribute("aria-label",
-      `${ws.label}: ${STATUS_DE[s.status] || s.status}. ${trimmed}. Click to focus iTerm.`);
-    item.addEventListener("click", () => focusSession(s, item));
-    questsEl.appendChild(item);
+    wrap.appendChild(ghead);
+    for (const s of items) wrap.appendChild(buildQuestItem(s));
+    questsEl.appendChild(wrap);
   }
+}
+
+function buildQuestItem(s) {
+  const ws = workspaceFor(s.cwd);
+  const item = document.createElement("button");
+  item.type = "button";
+  item.className = `quest quest-${s.status}`;
+  item.dataset.tty = s.tty || "";
+  item.dataset.sessionId = s.id;
+  const label = s.lastPrompt || s.title || s.id.slice(0, 12);
+  // Default preview = 60 chars (hover expands via CSS).
+  const PREVIEW = 60;
+  const preview = label.length > PREVIEW ? label.slice(0, PREVIEW) + "…" : label;
+  const full = label.length > 400 ? label.slice(0, 400) + "…" : label;
+  item.innerHTML = `
+    <span class="orb quest-orb" data-status="${escapeHtml(s.status)}" aria-hidden="true"></span>
+    <span class="quest-row1">
+      <span class="quest-ws">${escapeHtml(ws.label)}</span>
+      <span class="quest-status">${escapeHtml(STATUS_DE[s.status] || s.status)}</span>
+    </span>
+    <span class="quest-age">${fmtAgeShort(s.ageMs)}</span>
+    <span class="quest-label" data-preview="${escapeHtml(preview)}" data-full="${escapeHtml(full)}">${escapeHtml(preview)}</span>
+  `;
+  item.setAttribute("aria-label",
+    `${ws.label}: ${STATUS_DE[s.status] || s.status}. ${preview}. Click to focus iTerm.`);
+  item.title = full;
+  item.addEventListener("click", () => focusSession(s, item));
+  // Hover-link sprite ↔ quest entry.
+  item.addEventListener("mouseenter", () => {
+    const sp = spriteById(s.id);
+    if (sp) sp.dataset.attentionHover = "1";
+    const lbl = item.querySelector(".quest-label");
+    if (lbl) lbl.textContent = full;
+  });
+  item.addEventListener("mouseleave", () => {
+    const sp = spriteById(s.id);
+    if (sp) delete sp.dataset.attentionHover;
+    const lbl = item.querySelector(".quest-label");
+    if (lbl) lbl.textContent = preview;
+  });
+  return item;
+}
+
+// ─── Empty / filter-empty states ────────────────────────────────
+function renderEmptyTown() {
+  if (townEl.querySelector(".town-empty")) return;
+  // Clear all existing rooms.
+  for (const [, entry] of roomEls) entry.room.remove();
+  roomEls.clear();
+  spriteCache.clear();
+  const el = document.createElement("div");
+  el.className = "town-empty";
+  el.innerHTML = `
+    <svg class="empty-sprite" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+      ${spriteSvgInline(SPRITE_AGENT_SLEEP)}
+    </svg>
+    <div class="empty-headline">no agents online</div>
+    <div class="empty-hint">Start <code>claude</code> in any workspace and you'll see them wake up here.</div>
+  `;
+  townEl.appendChild(el);
+}
+
+function spriteSvgInline(pattern) {
+  // Sleeping pose with neutral palette — no per-session vars available.
+  const { rects } = parsePattern(pattern);
+  // Map palette tokens to literal grayscale-ish fills so they read on glass.
+  const NEUTRAL = {
+    "var(--skin, #fcd9b0)": "#9ca3af",
+    "var(--skin-dark, #e2b38e)": "#6b7280",
+    "var(--hair, #1f2937)": "#374151",
+    "#0f172a": "#1f2937",
+    "var(--shirt, #3b82f6)": "#475569",
+    "var(--shirt-dark, #1d4ed8)": "#334155",
+  };
+  return rects.map((r) => {
+    const fill = NEUTRAL[r.fill] || r.fill;
+    return `<rect x="${r.x}" y="${r.y}" width="1" height="1" fill="${fill}"/>`;
+  }).join("");
 }
 
 function escapeHtml(s) {
@@ -935,6 +1076,9 @@ function setFilter(f) {
   for (const btn of document.querySelectorAll(".filter-chip")) {
     btn.setAttribute("aria-pressed", btn.dataset.filter === f ? "true" : "false");
   }
+  // Immediately re-check filter-empty state without waiting for next SSE tick.
+  const last = getLastSnapshot?.();
+  if (last && isTownActive()) updateFilterEmpty(last.sessions || []);
 }
 
 function syncSoundToggle() {

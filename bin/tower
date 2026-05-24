@@ -19,7 +19,7 @@ import {
 } from "../lib/paths.js";
 import { c, table, humanAge, statusLabel, truncate, box } from "../lib/cli/output.js";
 import { renderQr, getOrCreateToken } from "../lib/qr.js";
-import { VERSION } from "../lib/config.js";
+import { VERSION, SHOW_USD } from "../lib/config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -379,8 +379,7 @@ async function cmdStatus() {
     lines.push(`  pending    ${pendingCount > 0 ? c.yellow(pendingCount) : pendingCount}`);
     const usage = await safeGet(port, "/api/usage");
     if (usage?.body) {
-      const showUsd = process.env.TOWER_SHOW_USD === "1" || process.argv.includes("--show-usd");
-      if (showUsd) {
+      if (SHOW_USD) {
         const cost = usage.body.totalCostUsd ?? 0;
         lines.push(`  cost (∑)   $${Number(cost).toFixed(2)}`);
       } else {
