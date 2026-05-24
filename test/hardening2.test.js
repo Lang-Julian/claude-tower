@@ -123,7 +123,7 @@ test("/api/usage returns both burn rate fields (no NaN on empty)", async (t) => 
   t.after(() => { db.close(); cleanup(file); });
 
   const app = createApp({ publicDir: "/tmp" });
-  mountUsage(app, { db });
+  mountUsage(app, { db, sync: false });
 
   const r = await call(app, "GET", "/api/usage");
   assert.equal(r.status, 200);
