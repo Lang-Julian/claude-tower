@@ -136,6 +136,13 @@ function makeCard(session) {
   node.dataset.id = session.id;
   applyCard(node, session);
   node.addEventListener("click", () => focusSession(session, node));
+  // Enter / Space on a focused card → focus iTerm (matches click behavior).
+  node.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if (e.target.closest("button, a")) return; // let buttons/links handle it
+    e.preventDefault();
+    focusSession(session, node);
+  });
   return node;
 }
 
@@ -177,8 +184,12 @@ function applyCard(node, session) {
   node.querySelector(".title").textContent = fmtTitle(session);
 
   const promptEl = node.querySelector(".prompt");
-  promptEl.textContent = session.lastPrompt || "";
-  promptEl.style.display = session.lastPrompt ? "" : "none";
+  const promptText = (session.lastPrompt || "").trim();
+  promptEl.textContent = promptText;
+  // Short prompts ("weiter", "mach", "ok") collapse to a tiny inline chip
+  // so they don't waste two text lines. Threshold: 12 chars.
+  promptEl.classList.toggle("is-short", promptText.length > 0 && promptText.length < 12);
+  promptEl.style.display = promptText ? "" : "none";
 
   renderTimeline(node.querySelector(".timeline"), session.tools, session.status);
 

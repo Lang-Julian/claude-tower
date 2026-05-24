@@ -97,7 +97,7 @@ function printHelp() {
     c.bold("UTIL"),
     "  logs [--follow|-f] [--lines N] tail server log (default 50 lines)",
     "  mobile                         show QR + URL + token for LAN access",
-    "  db                             open SQLite shell on tower.sqlite",
+    "  db [prune [--days N]]          open SQLite shell, or prune decided approvals (default 30d)",
     "  --version, -v                  print version",
     "  --help, -h                     show this help",
     "",
@@ -600,12 +600,15 @@ function lanIp() {
 
 // --- db ------------------------------------------------------------------
 
-async function cmdDb() {
+async function cmdDb(args) {
   const dbPath = path.join(TOWER_DIR, "tower.sqlite");
   if (!existsSync(dbPath)) {
     console.error(c.dim("no database yet. start tower at least once: ") + c.bold("tower start"));
     process.exit(1);
   }
+  const sub = positional(args)[0];
+  if (sub === "prune") return cmdDbPrune(args);
+
   const bin = whichBin("sqlite3");
   if (!bin) {
     console.error(c.yellow("sqlite3 binary not found on PATH."));
@@ -615,6 +618,21 @@ async function cmdDb() {
   }
   const child = spawn(bin, [dbPath], { stdio: "inherit" });
   child.on("exit", (code) => process.exit(code ?? 0));
+}
+
+async function cmdDbPrune(args) {
+  // `tower db prune [--days N]`  default 30. Removes decided approvals older
+  // than the cutoff. Pending rows are kept regardless of age.
+  const days = Math.max(1, Number(optValue(args, "--days", "30")) || 30);
+  const { getDb, closeDb } = await import("../lib/db.js");
+  const { pruneApprovals } = await import("../lib/db.js");
+  const db = await getDb();
+  try {
+    const removed = pruneApprovals(db, days * 24 * 60 * 60 * 1000);
+    console.log(c.green(`pruned ${removed} decided approval${removed === 1 ? "" : "s"} older than ${days}d`));
+  } finally {
+    closeDb();
+  }
 }
 
 function whichBin(name) {

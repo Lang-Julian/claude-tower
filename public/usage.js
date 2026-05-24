@@ -11,22 +11,10 @@
 
 const POLL_MS = 30_000;
 // SHOW_USD is read from localStorage but mutable: the HUD plan pill flips it
-// at runtime and emits `tower:show-usd-changed` so we can repaint without a
-// hard reload. Keep as `let` so the listener below can update it.
-let SHOW_USD = (() => {
-  try { return localStorage.getItem("tower:show-usd") === "1"; }
-  catch { return false; }
-})();
-
-window.addEventListener("tower:show-usd-changed", (e) => {
-  SHOW_USD = !!e.detail?.showUsd;
-  // Re-tag the pill title + re-render with the last data.
-  const pill = document.getElementById("costPill");
-  if (pill) {
-    pill.title = SHOW_USD
-      ? "USD cost today · burn-rate over the last 60min (API plan)"
-      : "Tokens today · tokens/h over the last 60min (Max/Pro plan)";
-  }
+// at runtime; we listen to `tower:show-usd-changed` so the HUD plan-pill toggle
+// repaints without a hard reload. `showUsd()` always re-reads localStorage so
+// values stay in sync across tabs and modules.
+window.addEventListener("tower:show-usd-changed", () => {
   if (lastData) { updateTopbar(lastData); decorateCards(lastData); }
 });
 
@@ -34,6 +22,16 @@ const BRAILLE_LEVELS = [
   // 8 visual levels — empty, 1/8, 2/8 ... full
   "⠀", "⠁", "⠃", "⠇", "⠏", "⠟", "⠿", "⣿",
 ];
+
+// Display mode: tokens (default, Claude Max plan) vs USD ($).
+// Opt-in to USD via localStorage["tower:show-usd"] = "1".
+function showUsd() {
+  try { return localStorage.getItem("tower:show-usd") === "1"; }
+  catch { return false; }
+}
+
+// Threshold for "hot" token mode (per-card halo + ⚡ glyph).
+const TOKEN_HOT_THRESHOLD = 100_000_000; // 100M tokens
 
 function fmtUsd(n) {
   if (!n) return "$0";
@@ -73,9 +71,6 @@ function ensureTopbarPill() {
   pill = document.createElement("span");
   pill.id = "costPill";
   pill.className = "pill cost-pill cost-pill-top";
-  pill.title = SHOW_USD
-    ? "USD cost today · burn-rate over the last 60min (API plan)"
-    : "Tokens today · tokens/h over the last 60min (Max/Pro plan — set tower:show-usd=1 in localStorage for USD)";
   pill.textContent = "—";
   meta.insertBefore(pill, meta.firstChild);
   return pill;
@@ -84,27 +79,66 @@ function ensureTopbarPill() {
 function updateTopbar(data) {
   const pill = ensureTopbarPill();
   if (!pill) return;
-  if (SHOW_USD) {
+  if (showUsd()) {
     const today = data.today?.costUsd || 0;
     const burn = data.burnRateUsdPerHour || 0;
     pill.textContent = `${fmtUsd(today)} today · ${fmtUsd(burn)}/h`;
+    pill.title = "USD cost today · burn-rate over the last 60min (API plan)";
+    pill.dataset.mode = "usd";
     pill.dataset.hot = burn > 50 ? "1" : "0";
   } else {
     const today = data.today?.tokens || 0;
-    // Burn rate per hour from last-60min sum. data.recentTokensPerHour falls
-    // back to 60× the last-60min totalTokens if backend doesn't expose it.
-    const burn = data.recentTokensPerHour ?? 0;
-    pill.textContent = `${fmtTokens(today)} today · ${fmtTokens(burn)}/h`;
-    pill.dataset.hot = burn > 2_000_000 ? "1" : "0";
+    // Prefer backend's per-hour figure; fall back to currentBlock-derived rate.
+    const tphBackend = Number(data.recentTokensPerHour) || 0;
+    const blockTokens = Number(data.currentBlock?.totalTokens) || 0;
+    const tph = tphBackend || blockTokens;
+    pill.textContent = `${fmtTokens(today)} today · ${fmtTokens(tph)}/h`;
+    pill.title = "Tokens today · tokens per hour (Max/Pro plan — set tower:show-usd=1 in localStorage for USD)";
+    pill.dataset.mode = "tokens";
+    pill.dataset.hot = tph >= TOKEN_HOT_THRESHOLD ? "1" : "0";
   }
+}
+
+// Render 12 bars + halo dot on the last bucket. Uses currentColor for fill so
+// the CSS can color it per status. The SVG already exists in the card template.
+function renderSparkSvg(svg, buckets) {
+  if (!svg) return false;
+  if (!buckets || !buckets.length) { svg.classList.remove("spark-svg-on"); return false; }
+  const max = Math.max(...buckets, 1);
+  const w = 72, h = 16;
+  const n = buckets.length;
+  const gap = 1;
+  const barW = (w - gap * (n - 1)) / n;
+  let bars = "";
+  for (let i = 0; i < n; i++) {
+    const v = buckets[i] || 0;
+    const bh = v > 0 ? Math.max(2, Math.round((v / max) * (h - 2))) : 1;
+    const x = i * (barW + gap);
+    const y = h - bh;
+    const cls = i === n - 1 ? "spark-bar last" : "spark-bar";
+    bars += `<rect class="${cls}" x="${x.toFixed(2)}" y="${y}" width="${barW.toFixed(2)}" height="${bh}" rx="1"/>`;
+  }
+  const lastV = buckets[n - 1] || 0;
+  const totalActive = buckets.some((v) => v > 0);
+  let dot = "";
+  if (lastV > 0 && totalActive) {
+    const cx = (n - 1) * (barW + gap) + barW / 2;
+    const lastH = Math.max(2, Math.round((lastV / max) * (h - 2)));
+    const cy = h - lastH;
+    dot = `<circle class="spark-dot" cx="${cx.toFixed(2)}" cy="${cy}" r="1.8"/>`;
+  }
+  svg.innerHTML = bars + dot;
+  svg.classList.add("spark-svg-on");
+  return true;
 }
 
 // Returns the index of the meta-row inside a card. Cards are template-based,
 // so we know the layout: <header>, <h2.title>, <p.prompt>, <div.timeline>,
-// <footer>, <div.meta-row>.
+// <div.spark-row>, <footer>, <div.meta-row>.
 function ensureCardCostUi(card, session) {
   let pill = card.querySelector(".cost-pill-card");
-  let spark = card.querySelector(".sparkline");
+  const spark = card.querySelector(".sparkline");
+  const sparkSvg = card.querySelector(".spark-svg");
   const metaRow = card.querySelector(".meta-row");
   if (!metaRow) return null;
 
@@ -113,15 +147,33 @@ function ensureCardCostUi(card, session) {
     pill.className = "cost-pill cost-pill-card";
     metaRow.appendChild(pill);
   }
-  if (!spark) {
-    spark = document.createElement("span");
-    spark.className = "sparkline";
-    metaRow.appendChild(spark);
+
+  // Choose display mode: tokens (default for Claude Max) or USD.
+  const usd = showUsd();
+  if (usd) {
+    pill.textContent = fmtUsd(session.totalCostUsd);
+    pill.dataset.mode = "usd";
+    pill.dataset.hot = "0";
+    pill.title = `Session cost: $${(session.totalCostUsd || 0).toFixed(2)} · ${fmtTokens(session.totalTokens)} tokens`;
+  } else {
+    const tokens = Number(session.totalTokens) || 0;
+    pill.textContent = fmtTokens(tokens);
+    pill.dataset.mode = "tokens";
+    pill.dataset.hot = tokens >= TOKEN_HOT_THRESHOLD ? "1" : "0";
+    pill.title = `Session tokens: ${tokens.toLocaleString()} · $${(session.totalCostUsd || 0).toFixed(2)}`;
   }
 
-  pill.textContent = SHOW_USD ? fmtUsd(session.totalCostUsd) : fmtTokens(session.totalTokens);
-  spark.textContent = sparkBraille(session.spark);
-  spark.title = "Token-Aktivität letzte 60min (12 × 5min Buckets)";
+  // SVG sparkline is the source of truth. Braille text stays in-DOM as a11y/fallback.
+  const drew = renderSparkSvg(sparkSvg, session.spark);
+  if (spark) {
+    spark.textContent = sparkBraille(session.spark);
+    spark.classList.toggle("sparkline-hidden", drew);
+    spark.title = "Token activity over the last 60min (12 × 5min buckets)";
+  }
+  if (sparkSvg) {
+    sparkSvg.setAttribute("role", "img");
+    sparkSvg.setAttribute("aria-label", "Token activity over the last 60 minutes");
+  }
   // Stash detail for hover.
   card.dataset.totalCost = String(session.totalCostUsd);
   card.dataset.totalTokens = String(session.totalTokens);
