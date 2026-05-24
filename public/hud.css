@@ -362,5 +362,19 @@
   .hud-orbits { justify-content: flex-start; }
 }
 
+/* iPhone-sized: pills become icon+count only, drop the word label so the
+   four orb-pills fit one row without overflowing. */
+@media (max-width: 480px) {
+  .hud { margin: 8px 8px 0; padding: 8px 10px; gap: var(--space-2); }
+  .hud-brand-mark { font-size: 13px; }
+  .hud-brand-mark::before { width: 6px; height: 6px; margin-right: 6px; }
+  .hud-orb-pill .hud-label { display: none; }
+  .hud-orb-pill { padding: 4px 7px; gap: 4px; font-size: 10.5px; }
+  .hud-toggle span { display: none; }
+  .hud-cmd-btn kbd { display: none; }
+  .hud-seg button { padding: 4px 8px; font-size: 10px; }
+  .hud #updated { display: none; }
+}
+
 /* Hide legacy topbar if it still renders anywhere */
 header.topbar { display: none !important; }

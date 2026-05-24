@@ -344,6 +344,7 @@ body[data-view="town"] .sprite[data-attention-hover="1"] {
   font-size: 11px;
   letter-spacing: 0.04em;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* ─── Quest log: glass right rail ─────────────────────────────── */
