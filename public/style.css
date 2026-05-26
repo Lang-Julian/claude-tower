@@ -1,35 +1,35 @@
 /* claude-tower design tokens — dark cockpit */
 :root {
-  --az-primary: #0085C7;
-  --az-primary-light: #0097DF;
-  --az-primary-dark: #005A8C;
+  --ct-primary: #0ea5e9;
+  --ct-primary-light: #38bdf8;
+  --ct-primary-dark: #0369a1;
 
-  --az-sky: #38bdf8;
-  --az-emerald: #34d399;
-  --az-violet: #a78bfa;
-  --az-amber: #fbbf24;
-  --az-cyan: #00d4aa;
-  --az-rose: #fb7185;
+  --ct-sky: #38bdf8;
+  --ct-emerald: #34d399;
+  --ct-violet: #a78bfa;
+  --ct-amber: #fbbf24;
+  --ct-cyan: #00d4aa;
+  --ct-rose: #fb7185;
 
-  --az-bg: #0f172a;
-  --az-bg-alt: #1e1b4b;
+  --ct-bg: #0f172a;
+  --ct-bg-alt: #1e1b4b;
 
-  --az-text: #e2e8f0;
-  --az-text-muted: #94a3b8;
-  --az-text-dim: #64748b;
+  --ct-text: #e2e8f0;
+  --ct-text-muted: #94a3b8;
+  --ct-text-dim: #64748b;
 
-  --az-surface: rgba(255, 255, 255, 0.04);
-  --az-surface-hover: rgba(255, 255, 255, 0.07);
-  --az-border: rgba(255, 255, 255, 0.08);
-  --az-border-hover: rgba(255, 255, 255, 0.15);
+  --ct-surface: rgba(255, 255, 255, 0.04);
+  --ct-surface-hover: rgba(255, 255, 255, 0.07);
+  --ct-border: rgba(255, 255, 255, 0.08);
+  --ct-border-hover: rgba(255, 255, 255, 0.15);
 
-  --az-gradient-text: linear-gradient(135deg, #0085C7 0%, #00C2FF 100%);
-  --az-gradient-bg: radial-gradient(1200px 800px at 80% -10%, rgba(0, 133, 199, 0.18), transparent 60%),
+  --ct-gradient-text: linear-gradient(135deg, #0ea5e9 0%, #7dd3fc 100%);
+  --ct-gradient-bg: radial-gradient(1200px 800px at 80% -10%, rgba(14, 165, 233, 0.18), transparent 60%),
                     radial-gradient(900px 600px at -10% 110%, rgba(167, 139, 250, 0.12), transparent 55%),
                     linear-gradient(135deg, #0a0f1f 0%, #14102a 60%, #0a0f1f 100%);
 
-  --az-font-sans: 'Inter', 'Open Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
-  --az-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ct-font-sans: 'Inter', 'Open Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --ct-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -41,10 +41,10 @@ html, body { height: 100%; }
 
 body {
   margin: 0;
-  font-family: var(--az-font-sans);
-  color: var(--az-text);
-  background: var(--az-bg);
-  background-image: var(--az-gradient-bg);
+  font-family: var(--ct-font-sans);
+  color: var(--ct-text);
+  background: var(--ct-bg);
+  background-image: var(--ct-gradient-bg);
   background-attachment: fixed;
   font-feature-settings: "cv02", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
@@ -64,7 +64,7 @@ body {
   background: rgba(10, 15, 31, 0.72);
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
-  border-bottom: 1px solid var(--az-border);
+  border-bottom: 1px solid var(--ct-border);
 }
 
 .brand {
@@ -77,14 +77,14 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--az-gradient-text);
-  box-shadow: 0 0 18px rgba(0, 194, 255, 0.6);
+  background: var(--ct-gradient-text);
+  box-shadow: 0 0 18px rgba(125, 211, 252, 0.6);
   animation: pulse 2.4s ease-in-out infinite;
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 14px rgba(0, 194, 255, 0.45); }
-  50% { box-shadow: 0 0 26px rgba(0, 194, 255, 0.85); }
+  0%, 100% { box-shadow: 0 0 14px rgba(125, 211, 252, 0.45); }
+  50% { box-shadow: 0 0 26px rgba(125, 211, 252, 0.85); }
 }
 
 .brand h1 {
@@ -92,7 +92,7 @@ body {
   font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0;
-  background: var(--az-gradient-text);
+  background: var(--ct-gradient-text);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -100,8 +100,8 @@ body {
 
 .brand-sub {
   font-size: 12px;
-  color: var(--az-text-dim);
-  font-family: var(--az-font-mono);
+  color: var(--ct-text-dim);
+  font-family: var(--ct-font-mono);
 }
 
 .topbar-meta {
@@ -117,22 +117,22 @@ body {
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 11px;
-  font-family: var(--az-font-mono);
+  font-family: var(--ct-font-mono);
   letter-spacing: 0.02em;
-  background: var(--az-surface);
-  border: 1px solid var(--az-border);
-  color: var(--az-text-muted);
+  background: var(--ct-surface);
+  border: 1px solid var(--ct-border);
+  color: var(--ct-text-muted);
 }
 
-.pill-muted { color: var(--az-text-dim); }
-.pill-live { color: var(--az-emerald); border-color: rgba(52, 211, 153, 0.3); }
+.pill-muted { color: var(--ct-text-dim); }
+.pill-live { color: var(--ct-emerald); border-color: rgba(52, 211, 153, 0.3); }
 .pill-live::before {
   content: "";
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--az-emerald);
-  box-shadow: 0 0 8px var(--az-emerald);
+  background: var(--ct-emerald);
+  box-shadow: 0 0 8px var(--ct-emerald);
 }
 
 .toggle {
@@ -142,14 +142,14 @@ body {
   padding: 5px 10px 5px 6px;
   border-radius: 999px;
   font-size: 11px;
-  font-family: var(--az-font-mono);
-  background: var(--az-surface);
-  border: 1px solid var(--az-border);
-  color: var(--az-text-muted);
+  font-family: var(--ct-font-mono);
+  background: var(--ct-surface);
+  border: 1px solid var(--ct-border);
+  color: var(--ct-text-muted);
   cursor: pointer;
   user-select: none;
 }
-.toggle input { accent-color: var(--az-primary); cursor: pointer; }
+.toggle input { accent-color: var(--ct-primary); cursor: pointer; }
 
 /* ------------------------------------------------------------ */
 /* Summary, grid, cards, timeline → see cards.css                */
@@ -159,15 +159,15 @@ body {
 .footer {
   padding: 16px 28px 32px;
   font-size: 11px;
-  font-family: var(--az-font-mono);
-  color: var(--az-text-dim);
+  font-family: var(--ct-font-mono);
+  color: var(--ct-text-dim);
   text-align: center;
 }
 .footer code {
-  background: var(--az-surface);
+  background: var(--ct-surface);
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid var(--az-border);
+  border: 1px solid var(--ct-border);
 }
 
 /* small screens */
@@ -179,7 +179,7 @@ body {
 
 /* Focus / a11y */
 :focus-visible {
-  outline: 2px solid var(--az-primary-light);
+  outline: 2px solid var(--ct-primary-light);
   outline-offset: 2px;
   border-radius: 6px;
 }
