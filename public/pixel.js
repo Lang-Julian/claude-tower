@@ -8,28 +8,52 @@ import { subscribe, getLastSnapshot } from "/store.js";
 import { play as playSound, isSoundOn as soundsIsOn, setSoundOn as soundsSetOn } from "/sounds.js";
 
 // ─── Workspace map ────────────────────────────────────────────────
-// Synced with ~/.config/claude-workspaces.zsh. Edit here if you add a
-// workspace there (or we'll grow a /api/workspaces endpoint later).
-const HOME = "/Users/jal";
-const WORKSPACES = [
-  { key: "box",       label: "Brane AIF",     path: `${HOME}/ai-in-the-box`,                    icon: "shield" },
-  { key: "portal",    label: "Portal",        path: `${HOME}/Documents/DEV/ai-z-portal`,        icon: "chart" },
-  { key: "website",   label: "Website",       path: `${HOME}/Documents/DEV/ai-z-group`,         icon: "globe" },
-  { key: "veit",      label: "Veit Select",   path: `${HOME}/Documents/DEV/cafe-journey-builder`, icon: "coffee" },
-  { key: "hop",       label: "HOP",           path: `${HOME}/Documents/DEV/HOP`,                icon: "factory" },
-  { key: "marketing", label: "Marketing",     path: `${HOME}/Documents/DEV/brane-aif-marketing`, icon: "megaphone" },
-  { key: "sales",     label: "Sales Agent",   path: `${HOME}/Documents/DEV/ai-z-sales-agent`,   icon: "handshake" },
-  { key: "phone",     label: "Phone Agent",   path: `${HOME}/Documents/DEV/ai-z-phone-assistant`, icon: "phone" },
-  { key: "noderack",  label: "Noderack",      path: `${HOME}/Documents/DEV/ai-z-noderack`,      icon: "server" },
-  { key: "training",  label: "Training",      path: `${HOME}/Documents/DEV/training`,           icon: "book" },
-  { key: "brain",     label: "AI-Z Brain",    path: `${HOME}/ObsidianVaults/AI-Z-Brain`,        icon: "brain" },
-  { key: "personal",  label: "Personal Brain", path: `${HOME}/ObsidianVaults/Personal-Brain`,   icon: "user" },
+// Sessions are grouped into "rooms" in the town view based on cwd prefix.
+// Defaults below are illustrative — override at runtime by setting
+// window.CLAUDE_TOWER_WORKSPACES before this module loads, or drop a
+// JSON array into localStorage under "claude-tower.workspaces":
+//   [{ "key": "web", "label": "Website", "path": "~/code/web", "icon": "globe" }, ...]
+// Paths support a leading "~/" for the user's home directory.
+
+const HOME =
+  (typeof window !== "undefined" && window.CLAUDE_TOWER_HOME) ||
+  "~";
+
+function expandHome(p) {
+  if (!p) return p;
+  if (p === "~") return HOME;
+  if (p.startsWith("~/")) return HOME + p.slice(1);
+  return p;
+}
+
+const DEFAULT_WORKSPACES = [
+  { key: "frontend", label: "Frontend", path: "~/code/frontend", icon: "globe" },
+  { key: "backend",  label: "Backend",  path: "~/code/backend",  icon: "server" },
+  { key: "docs",     label: "Docs",     path: "~/code/docs",     icon: "book" },
+  { key: "notes",    label: "Notes",    path: "~/notes",         icon: "brain" },
 ];
+
+function loadWorkspaces() {
+  if (typeof window !== "undefined" && Array.isArray(window.CLAUDE_TOWER_WORKSPACES)) {
+    return window.CLAUDE_TOWER_WORKSPACES;
+  }
+  try {
+    const raw = typeof localStorage !== "undefined" && localStorage.getItem("claude-tower.workspaces");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return DEFAULT_WORKSPACES;
+}
+
+const WORKSPACES = loadWorkspaces().map((w) => ({ ...w, path: expandHome(w.path) }));
 const OTHER = { key: "other", label: "Other", path: null, icon: "house" };
 
 function workspaceFor(cwd) {
   if (!cwd) return OTHER;
   for (const w of WORKSPACES) {
+    if (!w.path) continue;
     if (cwd === w.path || cwd.startsWith(w.path + "/")) return w;
   }
   return OTHER;

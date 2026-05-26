@@ -12,8 +12,6 @@ All on `localhost`.
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)]()
 [![Made for Claude Code](https://img.shields.io/badge/made_for-Claude_Code-D97757)](https://claude.com/claude-code)
 
-![claude-tower cards view with two pending approvals](./docs/img/cards.png)
-
 </div>
 
 ---
@@ -29,14 +27,10 @@ You don't see any of it.
 
 **Two views, one truth — plus a Vision-Pro-style command palette:**
 
-| Cards (analytical) | Town (ambient) |
-|---|---|
-| ![](./docs/img/cards.png) | ![](./docs/img/town.png) |
-| liquid-glass cards, status orbs with halo pulse, cost pill, inline approve/deny | each session is a pixel character in their project's "house" with neon hairline outlines |
+- **Cards (analytical)** — liquid-glass cards, status orbs with halo pulse, cost pill, inline approve/deny.
+- **Town (ambient)** — each session is a pixel character in their project's "house" with neon hairline outlines.
 
 Press <kbd>⌘K</kbd> for the command palette: switch view, approve-all, jump-to-session.
-
-![](./docs/img/palette.png)
 
 ## What makes it different
 
@@ -172,8 +166,6 @@ MIT — see [LICENSE](./LICENSE).
 ---
 
 <div align="center">
-
-Built by [Julian Lang](https://github.com/Lang-Julian) · [AI-Z Group](https://ai-z-group.com)
 
 If this saves you 10 minutes a day, [drop a ⭐ on the repo](https://github.com/Lang-Julian/claude-tower).
 

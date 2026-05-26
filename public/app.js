@@ -166,7 +166,7 @@ function renderTimeline(timelineEl, tools, status) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([n, c]) => `${n}×${c}`);
-  timelineEl.title = `letzte ${slice.length} Tool-Calls: ${parts.join(" · ")}`;
+  timelineEl.title = `last ${slice.length} tool calls: ${parts.join(" · ")}`;
 }
 
 function applyCard(node, session) {
